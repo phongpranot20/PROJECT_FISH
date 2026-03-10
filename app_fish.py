@@ -17,23 +17,31 @@ CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Nenote
 
 @st.cache_resource
 def load_my_model():
-    # ID ไฟล์จากลิงก์ที่คุณส่งมา (11bmuokU3FgIY2PHbyeBDUX0QAt3JvVrt)
-    file_id = '11bmuokU3FgIY2PHbyeBDUX0QAt3JvVrt'
+    # ID ไฟล์ใหม่ที่คุณส่งมา
+    file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
     url = f'https://drive.google.com/uc?id={file_id}'
     
     if not os.path.exists(MODEL_PATH):
         try:
-            with st.spinner('📦 กำลังเชื่อมต่อกับสมอง AI (ครั้งแรกเท่านั้น อาจใช้เวลาสักครู่)...'):
-                gdown.download(url, MODEL_PATH, quiet=False)
+            with st.spinner('📦 กำลังดาวน์โหลดโมเดล AI จาก Google Drive (ครั้งแรกเท่านั้น)...'):
+                # fuzzy=True ช่วยให้จัดการกับลิงก์ที่มีการยืนยันการสแกนไวรัสได้ดีขึ้น
+                gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
         except Exception as e:
             st.error(f"❌ ไม่สามารถโหลดโมเดลได้: {e}")
             return None
             
     if os.path.exists(MODEL_PATH):
+        # ตรวจสอบเบื้องต้นว่าไม่ใช่ไฟล์เสีย (ปกติโมเดล .h5 ควรมีขนาด > 1MB)
+        if os.path.getsize(MODEL_PATH) < 1000000:
+            st.error("⚠️ ไฟล์ที่โหลดมามีขนาดเล็กเกินไป อาจเกิดจาก Link ไม่ถูกต้อง หรือสิทธิ์การเข้าถึงไม่ได้เปิดเป็น Public")
+            os.remove(MODEL_PATH) # ลบทิ้งเพื่อให้โหลดใหม่รอบหน้า
+            return None
+            
         try:
             return tf.keras.models.load_model(MODEL_PATH)
         except Exception as e:
-            st.error(f"❌ Error loading model file: {e}")
+            st.error(f"❌ ไฟล์โมเดลไม่ถูกต้องหรือเสียหาย: {e}")
+            return None
     return None
 
 def save_to_csv(new_df):
@@ -53,7 +61,7 @@ st.title("🐠 Fish Species Analysis")
 st.write("อัปโหลดไฟล์ภาพเพื่อวิเคราะห์สายพันธุ์และดู Dashboard สรุปผล")
 
 if model is None:
-    st.error("⚠️ ระบบไม่พร้อมใช้งานเนื่องจากโหลดโมเดลไม่สำเร็จ")
+    st.error("⚠️ ระบบไม่พร้อมใช้งาน กรุณาตรวจสอบสถานะโมเดลด้านบน")
 else:
     # --- ส่วนอัปโหลด ---
     uploaded_files = st.file_uploader("เลือกรูปภาพปลา (Multiple)...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
@@ -76,7 +84,7 @@ else:
             
             with st.spinner('กำลังวิเคราะห์...'):
                 for i, file in enumerate(uploaded_files):
-                    status_text.text(f"🔍 วิเคราะห์ไฟล์: {file.name}")
+                    status_text.text(f"🔍 วิเคราะห์: {file.name}")
                     img = Image.open(file).convert('RGB')
                     processed_img = img.resize((180, 180))
                     img_array = tf.keras.utils.img_to_array(processed_img)
@@ -106,20 +114,19 @@ else:
     if os.path.exists(HISTORY_FILE):
         try:
             df = pd.read_csv(HISTORY_FILE)
-            st.header("📊 Dashboard สรุปผลการวิเคราะห์")
+            st.header("📊 Dashboard สรุปผล")
             
-            # Metric ตัวใหญ่ อ่านง่าย
             m1, m2 = st.columns(2)
             with m1:
-                st.metric("จำนวนรูปภาพที่วิเคราะห์แล้ว", f"{len(df)} รูป")
+                st.metric("จำนวนรูปทั้งหมด", f"{len(df)} รูป")
             with m2:
-                st.metric("ค่าความมั่นใจเฉลี่ย (Confidence)", f"{df['Confidence'].mean():.2f}%")
+                st.metric("ความแม่นยำเฉลี่ย", f"{df['Confidence'].mean():.2f}%")
 
             st.write("") 
 
             c1, c2 = st.columns([1, 1.2])
             with c1:
-                fig_pie = px.pie(df, names='Species', title="สัดส่วนปลาที่พบ", hole=0.4)
+                fig_pie = px.pie(df, names='Species', title="สัดส่วนปลาที่วิเคราะห์แล้ว", hole=0.4)
                 fig_pie.update_layout(font=dict(size=16), title_font=dict(size=20))
                 st.plotly_chart(fig_pie, use_container_width=True)
             
@@ -129,18 +136,18 @@ else:
                 fig_scatter.update_layout(
                     height=500, 
                     font=dict(size=14),
-                    xaxis_title="เวลา",
+                    xaxis_title="วัน/เวลา",
                     yaxis_title="ความมั่นใจ (%)"
                 )
                 st.plotly_chart(fig_scatter, use_container_width=True)
 
-            with st.expander("📝 ดูตารางประวัติทั้งหมด"):
+            with st.expander("📝 ดูตารางประวัติ"):
                 st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
 
-            if st.sidebar.button("🗑️ ล้างประวัติข้อมูลทั้งหมด"):
+            if st.sidebar.button("🗑️ ล้างประวัติทั้งหมด"):
                 if os.path.exists(HISTORY_FILE):
                     os.remove(HISTORY_FILE)
                     st.rerun()
 
         except Exception as e:
-            st.error("พบปัญหาในการอ่านข้อมูลประวัติ")
+            st.error("พบปัญหาในการแสดงผล Dashboard")
