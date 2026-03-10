@@ -15,36 +15,46 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (บังคับ Card และรูปให้สูงเท่ากันเป๊ะ) ---
+# --- 2. Custom CSS (ปรับปรุงสีพื้นหลังและ Layout) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #FFFFFF; }
+    /* ✅ เปลี่ยนสีพื้นหลังเป็นสีฟ้าอ่อนตามคำขอ */
+    .stApp { 
+        background-color: #F0F8FF; /* สี AliceBlue */
+    }
     
+    /* ตกแต่งส่วน Title และ Text */
+    .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp span, .stApp label {
+        color: #262730 !important;
+    }
+
     /* บังคับ Column ให้เท่ากัน */
     [data-testid="column"] {
         display: flex;
         flex-direction: column;
     }
     
-    /* บังคับ Card (Container) ให้สูงเท่ากัน */
+    /* บังคับ Card (Container) ให้สูงเท่ากัน และเด่นขึ้นบนพื้นหลังสีฟ้า */
     [data-testid="stVerticalBlockBorderWrapper"] {
         flex: 1;
         display: flex;
         flex-direction: column;
         border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08); /* เพิ่มเงาให้เด่นขึ้น */
         padding: 0px !important;
         overflow: hidden;
-        border: 1px solid #eee !important;
+        border: 1px solid #e1e8ed !important;
+        background-color: white; /* พื้นหลัง Card เป็นสีขาว */
     }
 
-    /* บังคับรูปภาพให้สูงเท่ากันและตัดส่วนเกิน (object-fit) */
+    /* บังคับรูปภาพให้สูงเท่ากันเป๊ะและตัดขอบ (Crop) ให้พอดี */
     [data-testid="stImage"] img {
         height: 180px !important; 
         width: 100% !important;
         object-fit: cover !important; 
     }
 
+    /* จัดแต่งชื่อปลาและชื่อวิทยาศาสตร์ */
     .species-title { 
         font-weight: bold; 
         font-size: 1rem; 
@@ -59,26 +69,36 @@ st.markdown("""
         padding: 0 10px 15px 10px;
     }
 
-    /* สไตล์ปุ่ม Start Analysis */
+    /* สไตล์ปุ่ม Start Analysis สี Gradient */
     div.stButton > button:first-child {
         background: linear-gradient(to right, #00c6ff, #0072ff);
         color: white !important;
-        border: none; padding: 12px 30px; font-size: 18px; font-weight: bold;
-        border-radius: 12px; width: 100%; box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+        border: none; 
+        padding: 12px 30px; 
+        font-size: 18px; 
+        font-weight: bold;
+        border-radius: 12px; 
+        width: 100%; 
+        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+        transition: 0.3s;
+    }
+    div.stButton > button:first-child:hover {
+        transform: scale(1.02);
+        box-shadow: 0 6px 20px rgba(0, 114, 255, 0.4);
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. ตั้งค่าไฟล์ Log ---
-HISTORY_FILE = 'analysis_logs_v2.csv' 
+# --- 3. ตั้งค่าไฟล์ Log และโมเดล ---
+HISTORY_FILE = 'summary_log_v4.csv' 
 MODEL_PATH = 'fish_model_v3.h5'
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
 
 @st.cache_resource
 def load_my_model():
+    file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
+    url = f'https://drive.google.com/uc?id={file_id}'
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
-        file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
-        url = f'https://drive.google.com/uc?id={file_id}'
         try:
             with st.spinner('📦 Downloading AI Model...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
@@ -112,7 +132,8 @@ with st.sidebar:
 st.title("🐠 Fish Species Analysis")
 
 # --- SECTION: Example Species ---
-st.header("All Species")
+st.header("Example Species")
+
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
     {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
@@ -134,7 +155,6 @@ for idx, ex in enumerate(examples):
             else:
                 st.write(f"🚫 {ex['file']} missing")
             
-            # แก้ไขจุด Syntax Error บรรทัดนี้ (ใส่ f"..." ครอบข้อความ)
             st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
 
@@ -144,7 +164,7 @@ st.divider()
 if model is None:
     st.error("⚠️ AI Model is not ready.")
 else:
-    uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload images for analysis...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
         st.subheader(f"📸 Image Preview")
@@ -152,7 +172,10 @@ else:
             p_cols = st.columns(6)
             for idx, file in enumerate(uploaded_files):
                 with p_cols[idx % 6]:
-                    st.image(Image.open(file), caption=file.name, use_container_width=True)
+                    try:
+                        st.image(Image.open(file), caption=file.name, use_container_width=True)
+                    except:
+                        st.write("🖼️ File Error")
 
         if st.button('🚀 START ANALYSIS NOW'):
             results = []
@@ -179,14 +202,22 @@ else:
             st.success("✅ Analysis Complete!")
             st.rerun()
 
-    # --- 7. History Logs ---
+    # --- 7. Dashboard & Logs ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         if not df.empty:
-            st.header("📝 History Logs")
+            st.header("📊 Insight Dashboard")
+            
+            # โชว์ Metrics
+            m1, m2 = st.columns(2)
+            m1.metric("Total Analyzed", f"{len(df)} Images")
+            if 'Confidence' in df.columns:
+                m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
+
+            # โชว์ประวัติ
+            st.subheader("📝 History Logs")
             display_cols = [c for c in ['Timestamp', 'Filename', 'Species', 'Confidence'] if c in df.columns]
             st.dataframe(
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
                 use_container_width=True
             )
-
