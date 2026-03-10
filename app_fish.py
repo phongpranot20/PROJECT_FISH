@@ -11,7 +11,7 @@ import gdown
 # --- Page Configuration ---
 st.set_page_config(page_title="Fish Species Analysis", layout="wide", page_icon="🐠")
 
-# --- Custom UI Styling (ปุ่มเด่น Gradient) ---
+# --- Custom UI Styling ---
 st.markdown("""
     <style>
     div.stButton > button:first-child {
@@ -86,15 +86,12 @@ else:
 
     if uploaded_files:
         st.subheader(f"📸 Image Preview ({len(uploaded_files)})")
-        
-        # เพิ่มที่เลื่อน (Scrollable Container) ตรงนี้ครับ
         with st.container(height=350, border=True):
             cols = st.columns(6)
             for idx, file in enumerate(uploaded_files):
                 with cols[idx % 6]:
                     st.image(Image.open(file), caption=file.name, use_container_width=True)
 
-        # ปุ่ม Start Analysis เด่นๆ
         if st.button('🚀 START ANALYSIS NOW'):
             results = []
             status_text = st.empty()
@@ -123,15 +120,15 @@ else:
 
     st.divider()
 
-    # --- 2. Dashboard Section (แจ้งแบบเดิม) ---
+    # --- 2. Dashboard Section (แจ้งแบบเดิม - เอาสายพันธุ์ที่พบออกแล้ว) ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         st.header("📊 Insight Dashboard")
         
-        m1, m2, m3 = st.columns(3)
+        # ปรับเหลือ 2 คอลัมน์ให้ดูใหญ่ขึ้น
+        m1, m2 = st.columns(2)
         m1.metric("Total Analyzed", f"{len(df)} Images")
-        m2.metric("Avg. Confidence", f"{df['Confidence'].mean():.2f}%")
-        m3.metric("Species Found", f"{df['Species'].nunique()} Types")
+        m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
 
         c1, c2 = st.columns([1, 1.2])
         with c1:
