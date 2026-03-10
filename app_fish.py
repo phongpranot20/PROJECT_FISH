@@ -8,169 +8,139 @@ import plotly.express as px
 from datetime import datetime
 import gdown
 
-# --- 1. Page Config & Forced Light Theme ---
-st.set_page_config(
-    page_title="Fish Species Analysis", 
-    layout="wide", 
-    page_icon="🐠",
-    initial_sidebar_state="expanded"
-)
+# --- 1. Page Config ---
+st.set_page_config(page_title="Fish AI Classifier", layout="wide", page_icon="🐠")
 
-# --- 2. Custom CSS (Theme & Buttons) ---
+# --- 2. Advanced CSS for Custom UI (เลียนแบบรูปที่คุณส่งมา) ---
 st.markdown("""
     <style>
-    /* Force Light Theme Colors */
+    /* บังคับพื้นหลังสีฟ้าอ่อน/เทา ตามรูป */
     .stApp {
-        background-color: #FFFFFF;
-    }
-    .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span, .stApp label {
-        color: #262730 !important;
+        background-color: #F0F4F8;
     }
     
-    /* Standout Gradient Analysis Button */
-    div.stButton > button:first-child {
-        background: linear-gradient(to right, #00c6ff, #0072ff);
-        color: white !important;
-        border: none;
-        padding: 15px 30px;
-        font-size: 22px;
+    /* สไตล์ของ Card (กล่องขาวๆ) */
+    [data-testid="stVerticalBlock"] > div:has(div.card-box) {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        margin-bottom: 1rem;
+    }
+    
+    /* สไตล์หัวข้อ */
+    .section-title {
+        color: #8E9AAF;
+        font-size: 14px;
         font-weight: bold;
-        border-radius: 12px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 1rem;
+    }
+    
+    /* สไตล์ปุ่ม Classify Image */
+    div.stButton > button:first-child {
+        background-color: #E2E8F0;
+        color: #94A3B8;
+        border: none;
+        border-radius: 10px;
+        padding: 15px;
         width: 100%;
+        font-weight: bold;
         transition: 0.3s;
-        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
-        margin-top: 10px;
     }
     div.stButton > button:first-child:hover {
-        transform: scale(1.01);
-        box-shadow: 0 6px 20px rgba(0, 114, 255, 0.5);
-        background: linear-gradient(to right, #0072ff, #00c6ff);
+        background-color: #0072ff;
+        color: white;
     }
     
-    /* Sidebar styling */
-    .stSidebar {
-        background-color: #F8F9FB;
+    /* สไตล์กล่องดำ (About Model) */
+    .about-box {
+        background-color: #0F172A;
+        color: #94A3B8;
+        padding: 1.5rem;
+        border-radius: 15px;
+        font-size: 14px;
     }
+    
+    /* ซ่อน Streamlit Header/Footer เพื่อความเนียน */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-HISTORY_FILE = 'fish_prediction_history.csv'
-MODEL_PATH = 'fish_model_v3.h5'
-CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Nenotetra']
-
+# ฟังก์ชันโหลดโมเดลเดิม
 @st.cache_resource
 def load_my_model():
     file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
     url = f'https://drive.google.com/uc?id={file_id}'
-    
+    MODEL_PATH = 'fish_model_v3.h5'
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
-        if os.path.exists(MODEL_PATH): os.remove(MODEL_PATH)
-        try:
-            with st.spinner('📦 Loading AI Engine...'):
-                gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
-        except Exception as e:
-            st.error(f"❌ Connection Error: {e}")
-            return None
-
-    if os.path.exists(MODEL_PATH):
-        try:
-            # compile=False to handle version mismatch
-            return tf.keras.models.load_model(MODEL_PATH, compile=False)
-        except Exception:
-            return None
-    return None
-
-def save_to_csv(new_df):
-    if not os.path.isfile(HISTORY_FILE):
-        new_df.to_csv(HISTORY_FILE, index=False)
-    else:
-        try:
-            old_df = pd.read_csv(HISTORY_FILE)
-            combined_df = pd.concat([old_df, new_df], ignore_index=True)
-            combined_df.to_csv(HISTORY_FILE, index=False)
-        except Exception:
-            new_df.to_csv(HISTORY_FILE, index=False)
+        gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+    return tf.keras.models.load_model(MODEL_PATH, compile=False)
 
 model = load_my_model()
+CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Nenotetra']
 
-# --- Sidebar Controls ---
-with st.sidebar:
-    st.header("⚙️ App Controls")
-    if st.button("🗑️ Clear History Data", use_container_width=True):
-        if os.path.exists(HISTORY_FILE):
-            os.remove(HISTORY_FILE)
-            st.rerun()
+# --- 3. Main Layout ---
+col_left, col_right = st.columns([1, 1])
 
-# --- 3. Main Interface ---
-st.title("🐠 Fish Species Analysis")
-st.write("Upload fish images for instant species identification and tracking.")
-
-if model is None:
-    st.warning("⚠️ AI Model is not ready. Please verify Google Drive permissions.")
-else:
-    # Upload Section
-    uploaded_files = st.file_uploader("Select images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
-
-    if uploaded_files:
-        st.subheader(f"📸 Image Preview ({len(uploaded_files)})")
+# --- ฝั่งซ้าย: IMAGE SOURCE ---
+with col_left:
+    st.markdown('<p class="section-title">IMAGE SOURCE</p>', unsafe_allow_html=True)
+    
+    # ส่วนอัปโหลด
+    with st.container():
+        st.markdown('<div class="card-box">', unsafe_allow_html=True)
+        uploaded_file = st.file_uploader("", type=["jpg", "png", "jpeg"])
         
-        # Scrollable Container for Preview
-        with st.container(height=350, border=True):
-            cols = st.columns(6)
-            for idx, file in enumerate(uploaded_files):
-                with cols[idx % 6]:
-                    st.image(Image.open(file), caption=file.name, use_container_width=True)
+        if uploaded_file:
+            st.image(uploaded_file, use_container_width=True)
+        else:
+            # จำลองปุ่ม Select Fish Photo
+            st.info("⬆️ Select Fish Photo to start")
+        
+        btn_classify = st.button("Classify Image ❯")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        # Big Action Button
-        if st.button('🚀 START ANALYSIS NOW'):
-            results = []
-            status_text = st.empty()
-            progress_bar = st.progress(0)
+    # ส่วน TECHNICAL INFO
+    st.markdown('<p class="section-title">ⓘ TECHNICAL INFO</p>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="card-box">', unsafe_allow_html=True)
+        t1, t2 = st.columns(2)
+        t1.write("**Architecture**")
+        t2.write("CNN (Custom)")
+        t1.write("**Backend**")
+        t2.write("TensorFlow.py")
+        t1.write("**Privacy**")
+        t2.markdown("<span style='color:green'>100% Secure</span>", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# --- ฝั่งขวา: CLASSIFICATION RESULTS ---
+with col_right:
+    st.markdown('<p class="section-title">CLASSIFICATION RESULTS</p>', unsafe_allow_html=True)
+    
+    with st.container():
+        st.markdown('<div class="card-box" style="min-height: 400px; display: flex; align-items: center; justify-content: center; text-align: center;">', unsafe_allow_html=True)
+        
+        if uploaded_file and btn_classify:
+            img = Image.open(uploaded_file).convert('RGB').resize((180, 180))
+            img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
+            pred = model.predict(img_array, verbose=0)
+            res_idx = np.argmax(pred[0])
+            species = CLASS_NAMES[res_idx]
+            conf = np.max(pred[0]) * 100
             
-            for i, file in enumerate(uploaded_files):
-                status_text.text(f"🔍 Analyzing: {file.name}")
-                img = Image.open(file).convert('RGB').resize((180, 180))
-                img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
-                
-                pred = model.predict(img_array, verbose=0)
-                res_idx = np.argmax(pred[0])
-                results.append({
-                    'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    'Filename': file.name,
-                    'Species': CLASS_NAMES[res_idx],
-                    'Confidence': np.max(pred[0]) * 100
-                })
-                progress_bar.progress((i + 1) / len(uploaded_files))
-
-            save_to_csv(pd.DataFrame(results))
-            status_text.empty()
-            progress_bar.empty()
-            st.success("✅ Analysis Complete!")
-            st.balloons()
-
-    st.divider()
-
-    # --- 4. Dashboard Section ---
-    if os.path.exists(HISTORY_FILE):
-        df = pd.read_csv(HISTORY_FILE)
-        st.header("📊 Insight Dashboard")
+            st.success(f"### {species}")
+            st.write(f"Confidence: {conf:.2f}%")
+        else:
+            st.write("🔍\n\nUpload an image to see classification results")
         
-        # Simplified Metrics
-        m1, m2 = st.columns(2)
-        m1.metric("Total Analyzed", f"{len(df)} Images")
-        m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        # Visual Charts
-        c1, c2 = st.columns([1, 1.2])
-        with c1:
-            fig_pie = px.pie(df, names='Species', title="Species Distribution", hole=0.4)
-            st.plotly_chart(fig_pie, use_container_width=True)
-        with c2:
-            fig_scatter = px.scatter(df, x='Timestamp', y='Confidence', color='Species', 
-                                    hover_data=['Filename'], title="Confidence Levels Over Time")
-            st.plotly_chart(fig_scatter, use_container_width=True)
-
-        # Detailed Log Table
-        st.subheader("📝 History Logs")
-        st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
-
+    # ส่วน ABOUT THIS MODEL (กล่องดำ)
+    st.markdown('<div class="about-box">', unsafe_allow_html=True)
+    st.markdown("**ABOUT THIS MODEL**")
+    st.write("This AI model is trained to recognize specific fish species using Deep Learning. Analysis runs on a secure environment without compromising your data.")
+    st.markdown('</div>', unsafe_allow_html=True)
