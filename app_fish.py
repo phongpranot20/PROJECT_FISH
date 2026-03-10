@@ -15,81 +15,76 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (ปรับปรุงสีพื้นหลังและ Layout) ---
+# --- 2. Custom CSS (ปรับสีพื้นหลังแอป และกล่อง Card สีขาวตามรูปที่ 2) ---
 st.markdown("""
     <style>
-    /* ✅ เปลี่ยนสีพื้นหลังเป็นสีฟ้าอ่อนตามคำขอ */
+    /* ✅ 1. สีพื้นหลังของแอป (สีฟ้าอ่อน) */
     .stApp { 
-        background-color: #F0F8FF; /* สี AliceBlue */
+        background-color: #F0F8FF; 
     }
     
-    /* ตกแต่งส่วน Title และ Text */
-    .stApp h1, .stApp h2, .stApp h3, .stApp p, .stApp span, .stApp label {
-        color: #262730 !important;
-    }
-
-    /* บังคับ Column ให้เท่ากัน */
-    [data-testid="column"] {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    /* บังคับ Card (Container) ให้สูงเท่ากัน และเด่นขึ้นบนพื้นหลังสีฟ้า */
+    /* ✅ 2. ปรับแต่งกล่อง Card ให้เป็นสีขาวและขอบมน (ตามรูปที่ 2) */
     [data-testid="stVerticalBlockBorderWrapper"] {
         flex: 1;
         display: flex;
         flex-direction: column;
-        border-radius: 12px !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.08); /* เพิ่มเงาให้เด่นขึ้น */
+        background-color: white !important; /* พื้นหลังกล่องสีขาว */
+        border-radius: 20px !important;    /* ขอบมนมากขึ้นตามรูป */
         padding: 0px !important;
+        border: none !important;           /* เอาเส้นขอบออก */
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important; /* เพิ่มเงาให้นุ่มนวล */
         overflow: hidden;
-        border: 1px solid #e1e8ed !important;
-        background-color: white; /* พื้นหลัง Card เป็นสีขาว */
+        transition: transform 0.3s ease;
     }
 
-    /* บังคับรูปภาพให้สูงเท่ากันเป๊ะและตัดขอบ (Crop) ให้พอดี */
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        transform: translateY(-5px); /* เวลาเอาเมาส์ชี้ให้กล่องลอยขึ้นนิดนึง */
+    }
+
+    /* บังคับรูปภาพให้สูงเท่ากันเป๊ะ */
     [data-testid="stImage"] img {
         height: 180px !important; 
         width: 100% !important;
         object-fit: cover !important; 
     }
 
-    /* จัดแต่งชื่อปลาและชื่อวิทยาศาสตร์ */
+    /* จัดแต่งตัวอักษรด้านล่างรูป */
     .species-title { 
         font-weight: bold; 
-        font-size: 1rem; 
-        margin-top: 10px; 
-        padding: 0 10px; 
-        color: #333;
+        font-size: 1.1rem; 
+        margin-top: 15px; 
+        padding: 0 15px; 
+        color: #1E1E1E;
     }
     .species-sub { 
         font-style: italic; 
-        color: #888; 
-        font-size: 0.8rem; 
-        padding: 0 10px 15px 10px;
+        color: #8E8E93; 
+        font-size: 0.85rem; 
+        padding: 0 15px 20px 15px;
     }
 
-    /* สไตล์ปุ่ม Start Analysis สี Gradient */
+    /* ปรับแต่งส่วนหัวข้อหลัก */
+    .stApp h1, .stApp h2 {
+        color: #262730 !important;
+        font-weight: 800 !important;
+    }
+
+    /* ปุ่ม Start Analysis */
     div.stButton > button:first-child {
         background: linear-gradient(to right, #00c6ff, #0072ff);
         color: white !important;
         border: none; 
-        padding: 12px 30px; 
-        font-size: 18px; 
+        padding: 15px; 
+        font-size: 20px; 
         font-weight: bold;
-        border-radius: 12px; 
+        border-radius: 15px; 
         width: 100%; 
         box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
-        transition: 0.3s;
-    }
-    div.stButton > button:first-child:hover {
-        transform: scale(1.02);
-        box-shadow: 0 6px 20px rgba(0, 114, 255, 0.4);
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. ตั้งค่าไฟล์ Log และโมเดล ---
+# --- 3. ตั้งค่าไฟล์และโมเดล ---
 HISTORY_FILE = 'summary_log_v4.csv' 
 MODEL_PATH = 'fish_model_v3.h5'
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
@@ -146,12 +141,10 @@ examples = [
 cols = st.columns(6)
 for idx, ex in enumerate(examples):
     with cols[idx]:
+        # ใช้ container ครอบเพื่อให้เกิด Card สีขาวที่ตั้งค่าไว้ใน CSS
         with st.container(border=True):
             if os.path.exists(ex['file']):
-                try:
-                    st.image(ex['file'], use_container_width=True)
-                except:
-                    st.write("🖼️ Image Error")
+                st.image(ex['file'], use_container_width=True)
             else:
                 st.write(f"🚫 {ex['file']} missing")
             
@@ -164,7 +157,7 @@ st.divider()
 if model is None:
     st.error("⚠️ AI Model is not ready.")
 else:
-    uploaded_files = st.file_uploader("Upload images for analysis...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload fish images for analysis...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
         st.subheader(f"📸 Image Preview")
@@ -172,10 +165,7 @@ else:
             p_cols = st.columns(6)
             for idx, file in enumerate(uploaded_files):
                 with p_cols[idx % 6]:
-                    try:
-                        st.image(Image.open(file), caption=file.name, use_container_width=True)
-                    except:
-                        st.write("🖼️ File Error")
+                    st.image(Image.open(file), caption=file.name, use_container_width=True)
 
         if st.button('🚀 START ANALYSIS NOW'):
             results = []
@@ -202,20 +192,11 @@ else:
             st.success("✅ Analysis Complete!")
             st.rerun()
 
-    # --- 7. Dashboard & Logs ---
+    # --- 7. History Logs ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         if not df.empty:
-            st.header("📊 Insight Dashboard")
-            
-            # โชว์ Metrics
-            m1, m2 = st.columns(2)
-            m1.metric("Total Analyzed", f"{len(df)} Images")
-            if 'Confidence' in df.columns:
-                m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
-
-            # โชว์ประวัติ
-            st.subheader("📝 History Logs")
+            st.header("📝 History Logs")
             display_cols = [c for c in ['Timestamp', 'Filename', 'Species', 'Confidence'] if c in df.columns]
             st.dataframe(
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
