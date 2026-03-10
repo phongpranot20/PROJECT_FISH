@@ -35,24 +35,19 @@ def load_my_model():
     file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
     url = f'https://drive.google.com/uc?id={file_id}'
     
-    # ถ้าไม่มีไฟล์ หรือไฟล์เสีย (ขนาดเล็กเกินไป) ให้โหลดใหม่
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
         if os.path.exists(MODEL_PATH): os.remove(MODEL_PATH)
         try:
-            with st.spinner('📦 Downloading AI Model from Drive (Large File)...'):
-                # ใช้ fuzzy=True เพื่อข้ามหน้ายืนยันไวรัสของ Google
+            with st.spinner('📦 Loading AI Engine...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
         except Exception as e:
-            st.error(f"❌ Download Error: {e}")
+            st.error(f"❌ Connection Error: {e}")
             return None
 
     if os.path.exists(MODEL_PATH):
         try:
-            # ใช้ compile=False เพื่อความชัวร์ว่าโหลดขึ้นแน่นอน
             return tf.keras.models.load_model(MODEL_PATH, compile=False)
-        except Exception as e:
-            st.error(f"❌ Model signature not found. The file might be corrupted.")
-            st.info("💡 Try clicking 'Re-download Model' in the sidebar.")
+        except Exception:
             return None
     return None
 
@@ -71,42 +66,27 @@ model = load_my_model()
 
 # --- Sidebar ---
 with st.sidebar:
-    st.header("⚙️ App Controls")
-    if st.button("🔄 Re-download Model"):
-        if os.path.exists(MODEL_PATH): os.remove(MODEL_PATH)
-        st.cache_resource.clear()
-        st.rerun()
-    if st.button("🗑️ Clear History"):
-        if os.path.exists(HISTORY_FILE): os.remove(HISTORY_FILE)
-        st.rerun()
+    st.header("⚙️ Controls")
+    if st.button("🗑️ Clear All History"):
+        if os.path.exists(HISTORY_FILE):
+            os.remove(HISTORY_FILE)
+            st.rerun()
 
-# --- Main Page ---
+# --- Main Section ---
 st.title("🐠 Fish Species Analysis")
-st.write("Upload fish images for instant species identification.")
 
 if model is None:
-    st.warning("⚠️ Waiting for a valid model file. Check sidebar for Re-download option.")
+    st.warning("⚠️ AI Model not ready. Please check connection.")
 else:
-    uploaded_files = st.file_uploader("Select images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload Fish Images", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
-        st.subheader(f"📸 Selected Images ({len(uploaded_files)})")
-        with st.container(height=250):
-            cols = st.columns(6)
-            for idx, file in enumerate(uploaded_files):
-                with cols[idx % 6]:
-                    st.image(Image.open(file), use_container_width=True)
-
-        if st.button('🚀 START ANALYSIS'):
+        if st.button('🚀 RUN ANALYSIS'):
             results = []
-            status_text = st.empty()
             progress_bar = st.progress(0)
-            
             for i, file in enumerate(uploaded_files):
-                status_text.text(f"Processing: {file.name}")
                 img = Image.open(file).convert('RGB').resize((180, 180))
                 img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
-                
                 pred = model.predict(img_array, verbose=0)
                 res_idx = np.argmax(pred[0])
                 results.append({
@@ -116,19 +96,35 @@ else:
                     'Confidence': np.max(pred[0]) * 100
                 })
                 progress_bar.progress((i + 1) / len(uploaded_files))
-
             save_to_csv(pd.DataFrame(results))
-            status_text.empty()
-            progress_bar.empty()
-            st.success("✅ Analysis Complete!")
+            st.success("Analysis Complete!")
             st.balloons()
 
     st.divider()
-    # Dashboard ... (โค้ดส่วน Dashboard เหมือนเดิมครับ)
+
+    # --- Insight Dashboard ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         st.header("📊 Insight Dashboard")
-        m1, m2 = st.columns(2)
+        
+        # Metrics
+        m1, m2, m3 = st.columns(3)
         m1.metric("Total Analyzed", len(df))
         m2.metric("Avg. Confidence", f"{df['Confidence'].mean():.2f}%")
-        st.plotly_chart(px.pie(df, names='Species', hole=0.4), use_container_width=True)
+        m3.metric("Species Count", df['Species'].nunique())
+
+        # Charts
+        c1, c2 = st.columns(2)
+        with c1:
+            fig_pie = px.pie(df, names='Species', title="Species Distribution", hole=0.4)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        with c2:
+            # เพิ่มกราฟแท่งเพื่อดูจำนวนปลาแต่ละชนิด
+            species_counts = df['Species'].value_counts().reset_index()
+            species_counts.columns = ['Species', 'Count']
+            fig_bar = px.bar(species_counts, x='Species', y='Count', color='Species', title="Fish Count by Species")
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        # History Table
+        with st.expander("📝 View Detailed Logs"):
+            st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
