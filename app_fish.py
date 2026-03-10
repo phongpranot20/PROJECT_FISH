@@ -8,8 +8,39 @@ import plotly.express as px
 from datetime import datetime
 import gdown
 
-# --- ตั้งค่าหน้าเว็บ ---
+# --- Page Configuration ---
 st.set_page_config(page_title="Fish Species Analysis", layout="wide", page_icon="🐠")
+
+# --- Custom CSS for "Standout" Buttons ---
+st.markdown("""
+    <style>
+    /* ตกแต่งปุ่ม Start Analysis ให้เด่นเป็นพิเศษ */
+    div.stButton > button:first-child {
+        background: linear-gradient(to right, #00c6ff, #0072ff);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        font-size: 24px;
+        font-weight: bold;
+        border-radius: 10px;
+        width: 100%;
+        transition: 0.3s;
+        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+    }
+    div.stButton > button:first-child:hover {
+        transform: scale(1.02);
+        box-shadow: 0 6px 20px rgba(0, 114, 255, 0.5);
+        background: linear-gradient(to right, #0072ff, #00c6ff);
+        color: white;
+    }
+    /* ปรับแต่ง Sidebar Button */
+    .stSidebar [data-testid="stButton"] button {
+        background-color: #ff4b4b;
+        color: white;
+        border-radius: 5px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 HISTORY_FILE = 'fish_prediction_history.csv'
 MODEL_PATH = 'fish_model_v3.h5'
@@ -22,18 +53,17 @@ def load_my_model():
     
     if not os.path.exists(MODEL_PATH):
         try:
-            with st.spinner('📦 Loadding AI...'):
+            with st.spinner('📦 Loading AI Model...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
         except Exception as e:
-            st.error(f"❌ โหลดไม่สำเร็จ: {e}")
+            st.error(f"❌ Connection Failed: {e}")
             return None
 
     if os.path.exists(MODEL_PATH):
         try:
-            # ใช้ compile=False เพื่อแก้ปัญหา Unrecognized keyword arguments ในบางเวอร์ชัน
             return tf.keras.models.load_model(MODEL_PATH, compile=False)
         except Exception as e:
-            st.error(f"❌ โครงสร้างโมเดลขัดข้อง: {e}")
+            st.error(f"❌ Model structure error: {e}")
             if os.path.exists(MODEL_PATH): os.remove(MODEL_PATH)
             return None
     return None
@@ -51,29 +81,40 @@ def save_to_csv(new_df):
 
 model = load_my_model()
 
+# --- Main UI ---
 st.title("🐠 Fish Species Analysis")
-st.write("อัปโหลดไฟล์ภาพเพื่อวิเคราะห์สายพันธุ์และดู Dashboard สรุปผล")
+st.markdown("##### *Upload fish images to analyze species and view insight dashboard*")
 
 if model is None:
-    st.warning("⚠️ Connect AI... (ตรวจสอบสิทธิ์การแชร์ไฟล์ใน Drive)")
+    st.warning("⚠️ Connecting AI... (Please check Google Drive permissions)")
 else:
-    uploaded_files = st.file_uploader("Select fish...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    # --- Sidebar Options ---
+    with st.sidebar:
+        st.header("⚙️ Settings")
+        if st.button("🗑️ Clear History Data", use_container_width=True):
+            if os.path.exists(HISTORY_FILE):
+                os.remove(HISTORY_FILE)
+                st.rerun()
+
+    # --- Upload Area ---
+    uploaded_files = st.file_uploader("📂 Select fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
-        st.subheader(f"📸 Image Upload ({len(uploaded_files)} Image)")
-        with st.container(height=300):
+        st.info(f"✅ {len(uploaded_files)} image(s) selected.")
+        with st.expander("🖼️ Preview Uploaded Images", expanded=True):
             cols = st.columns(6)
             for idx, file in enumerate(uploaded_files):
                 with cols[idx % 6]:
                     st.image(Image.open(file), caption=file.name, use_container_width=True)
 
-        if st.button('Start Analysis', type="primary"):
+        # ปุ่มขนาดใหญ่และเด่นมาก
+        if st.button('🚀 RUN ANALYSIS NOW'):
             results = []
             status_text = st.empty()
             progress_bar = st.progress(0)
             
             for i, file in enumerate(uploaded_files):
-                status_text.text(f"🔍 Analysis: {file.name}")
+                status_text.text(f"🔍 Analyzing: {file.name}")
                 img = Image.open(file).convert('RGB').resize((180, 180))
                 img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
                 
@@ -90,24 +131,30 @@ else:
             save_to_csv(pd.DataFrame(results))
             status_text.empty()
             progress_bar.empty()
-            st.success("✅ Analysis Succes!")
+            st.success("✅ Analysis Success!")
             st.balloons()
 
     st.divider()
+
+    # --- Dashboard Area ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
-        st.header("📊 Dashboard")
-        m1, m2 = st.columns(2)
-        m1.metric("All Image", f"{len(df)} รูป")
-        m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
+        st.header("📊 Insight Dashboard")
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total Images", f"{len(df)}")
+        m2.metric("Average Confidence", f"{df['Confidence'].mean():.2f}%")
+        m3.metric("Most Found", f"{df['Species'].mode()[0] if not df.empty else 'N/A'}")
         
         c1, c2 = st.columns([1, 1.2])
         with c1:
-            st.plotly_chart(px.pie(df, names='Species', hole=0.4), use_container_width=True)
+            fig_pie = px.pie(df, names='Species', title="Species Distribution", hole=0.4, 
+                             color_discrete_sequence=px.colors.sequential.RdBu)
+            st.plotly_chart(fig_pie, use_container_width=True)
         with c2:
-            st.plotly_chart(px.scatter(df, x='Timestamp', y='Confidence', color='Species'), use_container_width=True)
+            fig_scatter = px.scatter(df, x='Timestamp', y='Confidence', color='Species', 
+                                     title="Confidence Levels", size='Confidence')
+            st.plotly_chart(fig_scatter, use_container_width=True)
             
-        if st.sidebar.button("🗑️ Clear History"):
-            os.remove(HISTORY_FILE)
-            st.rerun()
-
+        with st.expander("📝 View History Logs"):
+            st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
