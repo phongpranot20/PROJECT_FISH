@@ -40,9 +40,9 @@ st.markdown("""
 
     /* บังคับรูปภาพให้สูงเท่ากันและตัดส่วนเกิน (object-fit) */
     [data-testid="stImage"] img {
-        height: 180px !important; /* ความสูงคงที่ */
+        height: 180px !important; 
         width: 100% !important;
-        object-fit: cover !important; /* ตัดขอบรูปที่ยาวเกินให้พอดีช่อง */
+        object-fit: cover !important; 
     }
 
     .species-title { 
@@ -69,8 +69,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. ตั้งค่าไฟล์ (เปลี่ยนชื่อไฟล์ Log ใหม่เพื่อล้างค่า Accuracy เก่า) ---
-HISTORY_FILE = 'analysis_logs.csv' 
+# --- 3. ตั้งค่าไฟล์ Log ---
+HISTORY_FILE = 'analysis_logs_v2.csv' 
 MODEL_PATH = 'fish_model_v3.h5'
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
 
@@ -111,7 +111,7 @@ with st.sidebar:
 # --- 5. Main Interface ---
 st.title("🐠 Fish Species Analysis")
 
-# --- SECTION: Example Species (สะกดตามชื่อไฟล์จริงในเครื่องคุณ) ---
+# --- SECTION: Example Species ---
 st.header("Example Species")
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
@@ -119,7 +119,7 @@ examples = [
     {"name": "Cichlide", "sci": "Cichlidae family", "file": "cichilde.jpg"},
     {"name": "Koi", "sci": "Cyprinus rubrofuscus", "file": "koifish.jpg"},
     {"name": "Neon Tetra", "sci": "Paracheirodon innesi", "file": "neontetra.jpg"},
-    {"name": "Angelfish", "sci": "Pterophyllum", "file": "anglefish.jpg"} # <-- สะกดตามเครื่องคุณ
+    {"name": "Angelfish", "sci": "Pterophyllum", "file": "anglefish.jpg"} 
 ]
 
 cols = st.columns(6)
@@ -134,8 +134,9 @@ for idx, ex in enumerate(examples):
             else:
                 st.write(f"🚫 {ex['file']} missing")
             
-            st.markdown(f<div class='species-title'>{ex['name']}</div>, unsafe_allow_html=True)
-            st.markdown(f<div class='species-sub'>{ex['sci']}</div>, unsafe_allow_html=True)
+            # แก้ไขจุด Syntax Error บรรทัดนี้ (ใส่ f"..." ครอบข้อความ)
+            st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
 
 st.divider()
 
@@ -178,12 +179,11 @@ else:
             st.success("✅ Analysis Complete!")
             st.rerun()
 
-    # --- 7. History Logs Section (แสดงเฉพาะ Timestamp และข้อมูลวิเคราะห์) ---
+    # --- 7. History Logs ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         if not df.empty:
             st.header("📝 History Logs")
-            # เลือกแสดงเฉพาะคอลัมน์ที่ต้องการ
             display_cols = [c for c in ['Timestamp', 'Filename', 'Species', 'Confidence'] if c in df.columns]
             st.dataframe(
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
