@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (จัด Layout ให้ช่องเท่ากันและดูสะอาด) ---
+# --- 2. Custom CSS (เน้นแก้ให้รูปเท่ากันและ Card สูงเท่ากัน) ---
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF; }
@@ -28,15 +28,23 @@ st.markdown("""
     }
     
     [data-testid="stVerticalBlockBorderWrapper"] {
-        height: 100%;
+        flex: 1;
         display: flex;
         flex-direction: column;
         border-radius: 15px !important;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        padding: 0px !important; /* จัดระเบียบ padding */
+        padding: 0px !important;
+        overflow: hidden;
     }
 
-    /* จัดสไตล์ตัวอักษร */
+    /* บังคับรูปภาพให้สูงเท่ากันและ Crop ส่วนเกิน (object-fit) */
+    [data-testid="stImage"] img {
+        height: 200px !important;
+        object-fit: cover !important;
+        width: 100% !important;
+    }
+
+    /* ตกแต่งตัวอักษรใน Card */
     .species-title { 
         font-weight: bold; 
         font-size: 1.1rem; 
@@ -52,7 +60,7 @@ st.markdown("""
         padding: 0 10px;
     }
 
-    /* สไตล์ปุ่ม Start Analysis */
+    /* ปุ่มวิเคราะห์ */
     div.stButton > button:first-child {
         background: linear-gradient(to right, #00c6ff, #0072ff);
         color: white !important;
@@ -67,12 +75,26 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-HISTORY_FILE = 'summary_log_v4.csv' # เปลี่ยนชื่อให้ตรงกับในไฟล์ของคุณ
+HISTORY_FILE = 'summary_log_v4.csv'
 MODEL_PATH = 'fish_model_v3.h5'
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
 
+# --- 3. ระบบโหลด Model (ใส่ระบบ Auto-download กลับเข้าไปกันเหนียว) ---
 @st.cache_resource
 def load_my_model():
+    # ID ไฟล์ใน Google Drive (จากโค้ดเดิมของคุณ)
+    file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
+    url = f'https://drive.google.com/uc?id={file_id}'
+    
+    # ถ้าไม่มีไฟล์ หรือไฟล์เสีย ให้โหลดใหม่
+    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
+        try:
+            with st.spinner('📦 Downloading AI Model... Please wait...'):
+                gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+        except Exception as e:
+            st.error(f"❌ Download Error: {e}")
+            return None
+
     if os.path.exists(MODEL_PATH):
         try:
             return tf.keras.models.load_model(MODEL_PATH, compile=False)
@@ -102,13 +124,11 @@ with st.sidebar:
 
 # --- Main Interface ---
 st.title("🐠 Fish Species Analysis")
-st.write("Instant species identification system using Deep Learning.")
 
-# --- SECTION: Example Species (ดึงจากไฟล์ในเครื่อง) ---
+# --- SECTION: Example Species ---
 st.header("Example Species")
-st.write("Click an image to test the classifier (Classifier test via upload below)")
+st.write("Reference images from your local directory.")
 
-# กำหนดรายชื่อไฟล์ให้ตรงกับรูปภาพในโปรเจกต์ของคุณ
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
     {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
@@ -122,11 +142,10 @@ cols = st.columns(6)
 for idx, ex in enumerate(examples):
     with cols[idx]:
         with st.container(border=True):
-            # ตรวจสอบว่ามีไฟล์อยู่จริงไหมเพื่อป้องกัน Error
             if os.path.exists(ex['file']):
                 st.image(ex['file'], use_container_width=True)
             else:
-                st.warning(f"Missing {ex['file']}")
+                st.warning(f"No {ex['file']}")
             
             st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
@@ -134,7 +153,7 @@ for idx, ex in enumerate(examples):
 st.divider()
 
 if model is None:
-    st.warning("⚠️ AI Model (fish_model_v3.h5) not found in directory.")
+    st.error("⚠️ AI Model could not be loaded. Please check your internet connection for the first-time download.")
 else:
     # --- Upload Section ---
     uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
