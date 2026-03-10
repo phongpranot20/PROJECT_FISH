@@ -22,7 +22,7 @@ def load_my_model():
     
     if not os.path.exists(MODEL_PATH):
         try:
-            with st.spinner('📦 กำลังดาวน์โหลดโมเดล AI...'):
+            with st.spinner('📦 Loadding AI...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
         except Exception as e:
             st.error(f"❌ โหลดไม่สำเร็จ: {e}")
@@ -55,25 +55,25 @@ st.title("🐠 Fish Species Analysis")
 st.write("อัปโหลดไฟล์ภาพเพื่อวิเคราะห์สายพันธุ์และดู Dashboard สรุปผล")
 
 if model is None:
-    st.warning("⚠️ กำลังเชื่อมต่อกับโมเดล AI... (ตรวจสอบสิทธิ์การแชร์ไฟล์ใน Drive)")
+    st.warning("⚠️ Connect AI... (ตรวจสอบสิทธิ์การแชร์ไฟล์ใน Drive)")
 else:
-    uploaded_files = st.file_uploader("เลือกรูปภาพปลา...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Select fish...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
-        st.subheader(f"📸 รูปภาพที่อัปโหลด ({len(uploaded_files)} รูป)")
+        st.subheader(f"📸 Image Upload ({len(uploaded_files)} Image)")
         with st.container(height=300):
             cols = st.columns(6)
             for idx, file in enumerate(uploaded_files):
                 with cols[idx % 6]:
                     st.image(Image.open(file), caption=file.name, use_container_width=True)
 
-        if st.button('🚀 เริ่มการวิเคราะห์', type="primary"):
+        if st.button('Start Analysis', type="primary"):
             results = []
             status_text = st.empty()
             progress_bar = st.progress(0)
             
             for i, file in enumerate(uploaded_files):
-                status_text.text(f"🔍 วิเคราะห์: {file.name}")
+                status_text.text(f"🔍 Analysis: {file.name}")
                 img = Image.open(file).convert('RGB').resize((180, 180))
                 img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
                 
@@ -90,7 +90,7 @@ else:
             save_to_csv(pd.DataFrame(results))
             status_text.empty()
             progress_bar.empty()
-            st.success("✅ วิเคราะห์เสร็จสิ้น!")
+            st.success("✅ Analysis Succes!")
             st.balloons()
 
     st.divider()
@@ -98,8 +98,8 @@ else:
         df = pd.read_csv(HISTORY_FILE)
         st.header("📊 Dashboard")
         m1, m2 = st.columns(2)
-        m1.metric("จำนวนรูปทั้งหมด", f"{len(df)} รูป")
-        m2.metric("ความแม่นยำเฉลี่ย", f"{df['Confidence'].mean():.2f}%")
+        m1.metric("All Image", f"{len(df)} รูป")
+        m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
         
         c1, c2 = st.columns([1, 1.2])
         with c1:
@@ -107,6 +107,7 @@ else:
         with c2:
             st.plotly_chart(px.scatter(df, x='Timestamp', y='Confidence', color='Species'), use_container_width=True)
             
-        if st.sidebar.button("🗑️ ล้างประวัติทั้งหมด"):
+        if st.sidebar.button("🗑️ Clear History"):
             os.remove(HISTORY_FILE)
             st.rerun()
+
