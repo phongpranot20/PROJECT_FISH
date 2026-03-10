@@ -16,12 +16,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (จัดแต่งให้ช่องเท่ากันและสวยงาม) ---
+# --- 2. Custom CSS (จัด Layout ให้ช่องเท่ากันและดูสะอาด) ---
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF; }
     
-    /* ควบคุมขนาด Card ให้เท่ากัน */
+    /* บังคับให้ Column และ Card สูงเท่ากัน */
     [data-testid="column"] {
         display: flex;
         flex-direction: column;
@@ -31,31 +31,28 @@ st.markdown("""
         height: 100%;
         display: flex;
         flex-direction: column;
-        justify-content: space-between;
         border-radius: 15px !important;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        transition: transform 0.2s;
+        padding: 0px !important; /* จัดระเบียบ padding */
     }
 
-    [data-testid="stVerticalBlockBorderWrapper"]:hover {
-        transform: translateY(-5px);
-    }
-
-    /* ตกแต่งตัวอักษร */
+    /* จัดสไตล์ตัวอักษร */
     .species-title { 
         font-weight: bold; 
-        font-size: 1.2rem; 
-        margin-top: 10px; 
+        font-size: 1.1rem; 
+        margin-top: 12px; 
+        padding: 0 10px;
         color: #262730;
     }
     .species-sub { 
         font-style: italic; 
         color: #888; 
-        font-size: 0.9rem; 
-        margin-bottom: 10px;
+        font-size: 0.85rem; 
+        margin-bottom: 15px;
+        padding: 0 10px;
     }
 
-    /* ปุ่มวิเคราะห์สี Gradient */
+    /* สไตล์ปุ่ม Start Analysis */
     div.stButton > button:first-child {
         background: linear-gradient(to right, #00c6ff, #0072ff);
         color: white !important;
@@ -70,23 +67,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-HISTORY_FILE = 'fish_prediction_history.csv'
+HISTORY_FILE = 'summary_log_v4.csv' # เปลี่ยนชื่อให้ตรงกับในไฟล์ของคุณ
 MODEL_PATH = 'fish_model_v3.h5'
-CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Nenotetra']
+CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
 
 @st.cache_resource
 def load_my_model():
-    file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
-    url = f'https://drive.google.com/uc?id={file_id}'
-    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
-        if os.path.exists(MODEL_PATH): os.remove(MODEL_PATH)
-        try:
-            with st.spinner('📦 Loading AI Engine...'):
-                gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
-        except Exception: return None
     if os.path.exists(MODEL_PATH):
-        try: return tf.keras.models.load_model(MODEL_PATH, compile=False)
-        except: return None
+        try:
+            return tf.keras.models.load_model(MODEL_PATH, compile=False)
+        except:
+            return None
     return None
 
 def save_to_csv(new_df):
@@ -96,7 +87,8 @@ def save_to_csv(new_df):
         try:
             old_df = pd.read_csv(HISTORY_FILE)
             pd.concat([old_df, new_df], ignore_index=True).to_csv(HISTORY_FILE, index=False)
-        except: new_df.to_csv(HISTORY_FILE, index=False)
+        except:
+            new_df.to_csv(HISTORY_FILE, index=False)
 
 model = load_my_model()
 
@@ -110,36 +102,42 @@ with st.sidebar:
 
 # --- Main Interface ---
 st.title("🐠 Fish Species Analysis")
-st.write("Instant species identification and historical tracking dashboard.")
+st.write("Instant species identification system using Deep Learning.")
 
-# --- SECTION: Example Species (จัดวาง 6 ช่องให้เท่ากัน) ---
+# --- SECTION: Example Species (ดึงจากไฟล์ในเครื่อง) ---
 st.header("Example Species")
-st.write("Reference images for the species supported by this classifier.")
+st.write("Click an image to test the classifier (Classifier test via upload below)")
 
+# กำหนดรายชื่อไฟล์ให้ตรงกับรูปภาพในโปรเจกต์ของคุณ
 examples = [
-    {"name": "Goldfish", "sci": "Carassius auratus", "img": "https://img.freepik.com/free-photo/goldfish-swimming-water_23-2148814528.jpg"},
-    {"name": "Betta Fish", "sci": "Betta splendens", "img": "https://img.freepik.com/free-photo/betta-fish-clipping-path_1232-1550.jpg"},
-    {"name": "Clownfish", "sci": "Amphiprioninae", "img": "https://img.freepik.com/free-photo/clownfish-sea-anemone-underwater_23-2148153494.jpg"},
-    {"name": "Koi", "sci": "Cyprinus rubrofuscus", "img": "https://img.freepik.com/free-photo/koi-fish-pond_23-2148881423.jpg"},
-    {"name": "Discus", "sci": "Symphysodon", "img": "https://img.freepik.com/free-photo/discus-fish-swimming-aquarium_23-2148814545.jpg"},
-    {"name": "Angelfish", "sci": "Pterophyllum", "img": "https://img.freepik.com/free-photo/angelfish-swimming-aquarium_23-2148814541.jpg"}
+    {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
+    {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
+    {"name": "Cichlide", "sci": "Cichlidae family", "file": "cichilde.jpg"},
+    {"name": "Koi", "sci": "Cyprinus rubrofuscus", "file": "koifish.jpg"},
+    {"name": "Neon Tetra", "sci": "Paracheirodon innesi", "file": "neontetra.jpg"},
+    {"name": "Angelfish", "sci": "Pterophyllum", "file": "angelfish.jpg"}
 ]
 
 cols = st.columns(6)
 for idx, ex in enumerate(examples):
     with cols[idx]:
         with st.container(border=True):
-            st.image(ex['img'], use_container_width=True)
+            # ตรวจสอบว่ามีไฟล์อยู่จริงไหมเพื่อป้องกัน Error
+            if os.path.exists(ex['file']):
+                st.image(ex['file'], use_container_width=True)
+            else:
+                st.warning(f"Missing {ex['file']}")
+            
             st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
 
 st.divider()
 
 if model is None:
-    st.warning("⚠️ AI Model is not ready.")
+    st.warning("⚠️ AI Model (fish_model_v3.h5) not found in directory.")
 else:
     # --- Upload Section ---
-    uploaded_files = st.file_uploader("Upload images to analyze...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
         st.subheader(f"📸 Image Preview ({len(uploaded_files)})")
