@@ -8,22 +8,48 @@ import plotly.express as px
 from datetime import datetime
 import gdown
 
-# --- Page Configuration ---
-st.set_page_config(page_title="Fish Species Analysis", layout="wide", page_icon="🐠")
+# --- 1. Page Config & Forced Light Theme ---
+st.set_page_config(
+    page_title="Fish Species Analysis", 
+    layout="wide", 
+    page_icon="🐠",
+    initial_sidebar_state="expanded"
+)
 
-# --- Custom UI Styling ---
+# --- 2. Custom CSS (Theme & Buttons) ---
 st.markdown("""
     <style>
+    /* Force Light Theme Colors */
+    .stApp {
+        background-color: #FFFFFF;
+    }
+    .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span, .stApp label {
+        color: #262730 !important;
+    }
+    
+    /* Standout Gradient Analysis Button */
     div.stButton > button:first-child {
         background: linear-gradient(to right, #00c6ff, #0072ff);
-        color: white; border: none; padding: 15px 30px;
-        font-size: 20px; font-weight: bold; border-radius: 10px;
-        width: 100%; transition: 0.3s;
+        color: white !important;
+        border: none;
+        padding: 15px 30px;
+        font-size: 22px;
+        font-weight: bold;
+        border-radius: 12px;
+        width: 100%;
+        transition: 0.3s;
         box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+        margin-top: 10px;
     }
     div.stButton > button:first-child:hover {
         transform: scale(1.01);
+        box-shadow: 0 6px 20px rgba(0, 114, 255, 0.5);
         background: linear-gradient(to right, #0072ff, #00c6ff);
+    }
+    
+    /* Sidebar styling */
+    .stSidebar {
+        background-color: #F8F9FB;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -40,7 +66,7 @@ def load_my_model():
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
         if os.path.exists(MODEL_PATH): os.remove(MODEL_PATH)
         try:
-            with st.spinner('📦 Loading AI Model...'):
+            with st.spinner('📦 Loading AI Engine...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
         except Exception as e:
             st.error(f"❌ Connection Error: {e}")
@@ -48,6 +74,7 @@ def load_my_model():
 
     if os.path.exists(MODEL_PATH):
         try:
+            # compile=False to handle version mismatch
             return tf.keras.models.load_model(MODEL_PATH, compile=False)
         except Exception:
             return None
@@ -66,32 +93,35 @@ def save_to_csv(new_df):
 
 model = load_my_model()
 
-# --- Sidebar ---
+# --- Sidebar Controls ---
 with st.sidebar:
-    st.header("⚙️ Controls")
-    if st.button("🗑️ Clear History Data"):
+    st.header("⚙️ App Controls")
+    if st.button("🗑️ Clear History Data", use_container_width=True):
         if os.path.exists(HISTORY_FILE):
             os.remove(HISTORY_FILE)
             st.rerun()
 
-# --- Main Page ---
+# --- 3. Main Interface ---
 st.title("🐠 Fish Species Analysis")
-st.write("Upload images to identify fish species and track results.")
+st.write("Upload fish images for instant species identification and tracking.")
 
 if model is None:
-    st.warning("⚠️ AI Model is not ready. Please check Google Drive link.")
+    st.warning("⚠️ AI Model is not ready. Please verify Google Drive permissions.")
 else:
-    # --- 1. Upload & Preview Section (มีที่เลื่อนแบบเดิม) ---
+    # Upload Section
     uploaded_files = st.file_uploader("Select images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
         st.subheader(f"📸 Image Preview ({len(uploaded_files)})")
+        
+        # Scrollable Container for Preview
         with st.container(height=350, border=True):
             cols = st.columns(6)
             for idx, file in enumerate(uploaded_files):
                 with cols[idx % 6]:
                     st.image(Image.open(file), caption=file.name, use_container_width=True)
 
+        # Big Action Button
         if st.button('🚀 START ANALYSIS NOW'):
             results = []
             status_text = st.empty()
@@ -120,16 +150,17 @@ else:
 
     st.divider()
 
-    # --- 2. Dashboard Section (แจ้งแบบเดิม - เอาสายพันธุ์ที่พบออกแล้ว) ---
+    # --- 4. Dashboard Section ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         st.header("📊 Insight Dashboard")
         
-        # ปรับเหลือ 2 คอลัมน์ให้ดูใหญ่ขึ้น
+        # Simplified Metrics
         m1, m2 = st.columns(2)
         m1.metric("Total Analyzed", f"{len(df)} Images")
         m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
 
+        # Visual Charts
         c1, c2 = st.columns([1, 1.2])
         with c1:
             fig_pie = px.pie(df, names='Species', title="Species Distribution", hole=0.4)
@@ -139,5 +170,6 @@ else:
                                     hover_data=['Filename'], title="Confidence Levels Over Time")
             st.plotly_chart(fig_scatter, use_container_width=True)
 
+        # Detailed Log Table
         st.subheader("📝 History Logs")
         st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
