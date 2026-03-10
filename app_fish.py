@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (จัด Layout ให้ Card และรูปเท่ากันทุกช่อง) ---
+# --- 2. Custom CSS (บังคับ Card และรูปให้สูงเท่ากันเป๊ะ) ---
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF; }
@@ -38,11 +38,11 @@ st.markdown("""
         border: 1px solid #eee !important;
     }
 
-    /* บังคับรูปภาพให้สูงเท่ากันเป๊ะและตัดขอบ (Crop) ให้พอดี */
+    /* บังคับรูปภาพให้สูงเท่ากันและตัดส่วนเกิน (object-fit) */
     [data-testid="stImage"] img {
-        height: 180px !important; /* ความสูงคงที่สำหรับทุกรูป */
+        height: 180px !important; /* ความสูงคงที่ */
         width: 100% !important;
-        object-fit: cover !important; /* ตัดขอบส่วนที่ยาวเกินให้พอดี */
+        object-fit: cover !important; /* ตัดขอบรูปที่ยาวเกินให้พอดีช่อง */
     }
 
     .species-title { 
@@ -69,17 +69,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. ตั้งค่าไฟล์และโมเดล ---
-# เปลี่ยนชื่อไฟล์ Log ใหม่เพื่อให้โครงสร้าง Timestamp กลับมาถูกต้อง
-HISTORY_FILE = 'fish_final_report.csv' 
+# --- 3. ตั้งค่าไฟล์ (เปลี่ยนชื่อไฟล์ Log ใหม่เพื่อล้างค่า Accuracy เก่า) ---
+HISTORY_FILE = 'analysis_logs.csv' 
 MODEL_PATH = 'fish_model_v3.h5'
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
 
 @st.cache_resource
 def load_my_model():
-    file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
-    url = f'https://drive.google.com/uc?id={file_id}'
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
+        file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
+        url = f'https://drive.google.com/uc?id={file_id}'
         try:
             with st.spinner('📦 Downloading AI Model...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
@@ -112,42 +111,39 @@ with st.sidebar:
 # --- 5. Main Interface ---
 st.title("🐠 Fish Species Analysis")
 
-# --- SECTION: Example Species ---
+# --- SECTION: Example Species (สะกดตามชื่อไฟล์จริงในเครื่องคุณ) ---
 st.header("Example Species")
-
-# แก้ไขสะกด 'angelfish.jpg' ให้ถูกต้อง
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
     {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
     {"name": "Cichlide", "sci": "Cichlidae family", "file": "cichilde.jpg"},
     {"name": "Koi", "sci": "Cyprinus rubrofuscus", "file": "koifish.jpg"},
     {"name": "Neon Tetra", "sci": "Paracheirodon innesi", "file": "neontetra.jpg"},
-    {"name": "Angelfish", "sci": "Pterophyllum", "file": "angelfish.jpg"}
+    {"name": "Angelfish", "sci": "Pterophyllum", "file": "anglefish.jpg"} # <-- สะกดตามเครื่องคุณ
 ]
 
 cols = st.columns(6)
 for idx, ex in enumerate(examples):
     with cols[idx]:
         with st.container(border=True):
-            # ตรวจสอบไฟล์รูปภาพในเครื่อง
             if os.path.exists(ex['file']):
                 try:
                     st.image(ex['file'], use_container_width=True)
                 except:
                     st.write("🖼️ Image Error")
             else:
-                st.write(f"🚫 {ex['file']} not found")
+                st.write(f"🚫 {ex['file']} missing")
             
-            st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
+            st.markdown(f<div class='species-title'>{ex['name']}</div>, unsafe_allow_html=True)
+            st.markdown(f<div class='species-sub'>{ex['sci']}</div>, unsafe_allow_html=True)
 
 st.divider()
 
-# --- 6. Upload & Analysis Section ---
+# --- 6. Upload & Analysis ---
 if model is None:
     st.error("⚠️ AI Model is not ready.")
 else:
-    uploaded_files = st.file_uploader("Upload fish images for analysis...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
         st.subheader(f"📸 Image Preview")
@@ -166,7 +162,6 @@ else:
                 status_text.text(f"🔍 Analyzing: {file.name}")
                 img = Image.open(file).convert('RGB').resize((180, 180))
                 img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
-                
                 pred = model.predict(img_array, verbose=0)
                 res_idx = np.argmax(pred[0])
                 results.append({
@@ -183,20 +178,14 @@ else:
             st.success("✅ Analysis Complete!")
             st.rerun()
 
-    st.divider()
-
-    # --- 7. History Logs Section (แก้ไขให้ดึง Timestamp กลับมา) ---
+    # --- 7. History Logs Section (แสดงเฉพาะ Timestamp และข้อมูลวิเคราะห์) ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         if not df.empty:
             st.header("📝 History Logs")
-            
-            # บังคับแสดงผลเฉพาะคอลัมน์ที่เรากำหนดไว้
-            display_columns = ['Timestamp', 'Filename', 'Species', 'Confidence']
-            # ตรวจสอบว่าในไฟล์มีคอลัมน์เหล่านี้ครบไหม (ป้องกัน Error)
-            actual_columns = [col for col in display_columns if col in df.columns]
-            
+            # เลือกแสดงเฉพาะคอลัมน์ที่ต้องการ
+            display_cols = [c for c in ['Timestamp', 'Filename', 'Species', 'Confidence'] if c in df.columns]
             st.dataframe(
-                df[actual_columns].sort_values(by='Timestamp', ascending=False), 
+                df[display_cols].sort_values(by='Timestamp', ascending=False), 
                 use_container_width=True
             )
