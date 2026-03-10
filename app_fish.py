@@ -6,7 +6,7 @@ import os
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
-import gdown  # สำหรับโหลดไฟล์จาก Google Drive
+import gdown  # สำหรับโหลดโมเดลจาก Google Drive
 
 # --- ตั้งค่าหน้าเว็บ ---
 st.set_page_config(page_title="Fish Species Analysis", layout="wide", page_icon="🐠")
@@ -17,24 +17,23 @@ CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Nenote
 
 @st.cache_resource
 def load_my_model():
-    # ID ของไฟล์ .h5 บน Google Drive (จากลิงก์ที่คุณส่งมา)
-    # หมายเหตุ: ID นี้ต้องเป็นของตัวไฟล์ไม่ใช่ของโฟลเดอร์
-    file_id = '11bmuokU3FgIY2PHbyeBDUX0QAt3JvVrt' 
+    # ID ไฟล์จากลิงก์ที่คุณส่งมา (11bmuokU3FgIY2PHbyeBDUX0QAt3JvVrt)
+    file_id = '11bmuokU3FgIY2PHbyeBDUX0QAt3JvVrt'
     url = f'https://drive.google.com/uc?id={file_id}'
     
     if not os.path.exists(MODEL_PATH):
         try:
-            with st.spinner('กำลังดาวน์โหลดโมเดล AI จาก Cloud (ครั้งแรกเท่านั้น)...'):
+            with st.spinner('📦 กำลังเชื่อมต่อกับสมอง AI (ครั้งแรกเท่านั้น อาจใช้เวลาสักครู่)...'):
                 gdown.download(url, MODEL_PATH, quiet=False)
         except Exception as e:
-            st.error(f"ไม่สามารถดาวน์โหลดโมเดลได้: {e}")
+            st.error(f"❌ ไม่สามารถโหลดโมเดลได้: {e}")
             return None
             
     if os.path.exists(MODEL_PATH):
         try:
             return tf.keras.models.load_model(MODEL_PATH)
         except Exception as e:
-            st.error(f"Error loading model file: {e}")
+            st.error(f"❌ Error loading model file: {e}")
     return None
 
 def save_to_csv(new_df):
@@ -54,7 +53,7 @@ st.title("🐠 Fish Species Analysis")
 st.write("อัปโหลดไฟล์ภาพเพื่อวิเคราะห์สายพันธุ์และดู Dashboard สรุปผล")
 
 if model is None:
-    st.error("❌ ระบบขัดข้อง: ไม่สามารถติดตั้งโมเดล AI ได้")
+    st.error("⚠️ ระบบไม่พร้อมใช้งานเนื่องจากโหลดโมเดลไม่สำเร็จ")
 else:
     # --- ส่วนอัปโหลด ---
     uploaded_files = st.file_uploader("เลือกรูปภาพปลา (Multiple)...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
@@ -77,7 +76,7 @@ else:
             
             with st.spinner('กำลังวิเคราะห์...'):
                 for i, file in enumerate(uploaded_files):
-                    status_text.text(f"กำลังประมวลผล: {file.name}")
+                    status_text.text(f"🔍 วิเคราะห์ไฟล์: {file.name}")
                     img = Image.open(file).convert('RGB')
                     processed_img = img.resize((180, 180))
                     img_array = tf.keras.utils.img_to_array(processed_img)
@@ -107,35 +106,35 @@ else:
     if os.path.exists(HISTORY_FILE):
         try:
             df = pd.read_csv(HISTORY_FILE)
-            st.header("📊 Dashboard สรุปผลการวิเคราะห์สะสม")
+            st.header("📊 Dashboard สรุปผลการวิเคราะห์")
             
+            # Metric ตัวใหญ่ อ่านง่าย
             m1, m2 = st.columns(2)
             with m1:
-                st.metric("จำนวนรูปภาพทั้งหมด", f"{len(df)} รูป")
+                st.metric("จำนวนรูปภาพที่วิเคราะห์แล้ว", f"{len(df)} รูป")
             with m2:
-                st.metric("ความแม่นยำเฉลี่ย", f"{df['Confidence'].mean():.2f}%")
+                st.metric("ค่าความมั่นใจเฉลี่ย (Confidence)", f"{df['Confidence'].mean():.2f}%")
 
             st.write("") 
 
             c1, c2 = st.columns([1, 1.2])
             with c1:
-                fig_pie = px.pie(df, names='Species', title="สัดส่วนสายพันธุ์ปลาที่วิเคราะห์ได้", hole=0.4)
+                fig_pie = px.pie(df, names='Species', title="สัดส่วนปลาที่พบ", hole=0.4)
                 fig_pie.update_layout(font=dict(size=16), title_font=dict(size=20))
                 st.plotly_chart(fig_pie, use_container_width=True)
             
             with c2:
-                fig_line = px.scatter(df, x='Timestamp', y='Confidence', color='Species', 
-                                    hover_data=['Filename'],
-                                    title="ระดับความมั่นใจรายรูป")
-                fig_line.update_layout(
+                fig_scatter = px.scatter(df, x='Timestamp', y='Confidence', color='Species', 
+                                    hover_data=['Filename'], title="ระดับความมั่นใจรายครั้ง")
+                fig_scatter.update_layout(
                     height=500, 
                     font=dict(size=14),
-                    xaxis_title="เวลาที่วิเคราะห์",
+                    xaxis_title="เวลา",
                     yaxis_title="ความมั่นใจ (%)"
                 )
-                st.plotly_chart(fig_line, use_container_width=True)
+                st.plotly_chart(fig_scatter, use_container_width=True)
 
-            with st.expander("📝 ดูตารางข้อมูลประวัติทั้งหมด"):
+            with st.expander("📝 ดูตารางประวัติทั้งหมด"):
                 st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
 
             if st.sidebar.button("🗑️ ล้างประวัติข้อมูลทั้งหมด"):
