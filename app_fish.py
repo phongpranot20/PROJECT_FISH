@@ -16,39 +16,57 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (Theme & Styling) ---
+# --- 2. Custom CSS (จัดแต่งให้ช่องเท่ากันและสวยงาม) ---
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF; }
-    .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span, .stApp label { color: #262730 !important; }
     
+    /* ควบคุมขนาด Card ให้เท่ากัน */
+    [data-testid="column"] {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        border-radius: 15px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+    }
+
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        transform: translateY(-5px);
+    }
+
+    /* ตกแต่งตัวอักษร */
+    .species-title { 
+        font-weight: bold; 
+        font-size: 1.2rem; 
+        margin-top: 10px; 
+        color: #262730;
+    }
+    .species-sub { 
+        font-style: italic; 
+        color: #888; 
+        font-size: 0.9rem; 
+        margin-bottom: 10px;
+    }
+
     /* ปุ่มวิเคราะห์สี Gradient */
     div.stButton > button:first-child {
         background: linear-gradient(to right, #00c6ff, #0072ff);
         color: white !important;
         border: none;
-        padding: 15px 30px;
-        font-size: 20px;
+        padding: 12px 30px;
+        font-size: 18px;
         font-weight: bold;
         border-radius: 12px;
         width: 100%;
-        transition: 0.3s;
         box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
     }
-    div.stButton > button:first-child:hover {
-        transform: scale(1.01);
-        background: linear-gradient(to right, #0072ff, #00c6ff);
-    }
-
-    /* ตกแต่งส่วน Example Species Card */
-    .species-card {
-        border-radius: 15px;
-        padding: 10px;
-        background: #fdfdfd;
-        text-align: left;
-    }
-    .species-title { font-weight: bold; font-size: 1.1rem; margin-top: 5px; }
-    .species-sub { font-style: italic; color: #777; font-size: 0.85rem; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -60,21 +78,15 @@ CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Nenote
 def load_my_model():
     file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
     url = f'https://drive.google.com/uc?id={file_id}'
-    
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
         if os.path.exists(MODEL_PATH): os.remove(MODEL_PATH)
         try:
             with st.spinner('📦 Loading AI Engine...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
-        except Exception as e:
-            st.error(f"❌ Connection Error: {e}")
-            return None
-
+        except Exception: return None
     if os.path.exists(MODEL_PATH):
-        try:
-            return tf.keras.models.load_model(MODEL_PATH, compile=False)
-        except:
-            return None
+        try: return tf.keras.models.load_model(MODEL_PATH, compile=False)
+        except: return None
     return None
 
 def save_to_csv(new_df):
@@ -83,10 +95,8 @@ def save_to_csv(new_df):
     else:
         try:
             old_df = pd.read_csv(HISTORY_FILE)
-            combined_df = pd.concat([old_df, new_df], ignore_index=True)
-            combined_df.to_csv(HISTORY_FILE, index=False)
-        except:
-            new_df.to_csv(HISTORY_FILE, index=False)
+            pd.concat([old_df, new_df], ignore_index=True).to_csv(HISTORY_FILE, index=False)
+        except: new_df.to_csv(HISTORY_FILE, index=False)
 
 model = load_my_model()
 
@@ -100,13 +110,12 @@ with st.sidebar:
 
 # --- Main Interface ---
 st.title("🐠 Fish Species Analysis")
-st.write("Identify fish species and keep track of your analysis history.")
+st.write("Instant species identification and historical tracking dashboard.")
 
-# --- SECTION: Example Species (ตามรูปที่แนบมา) ---
-st.subheader("Example Species")
-st.write("Click a button below an image to test the classifier")
+# --- SECTION: Example Species (จัดวาง 6 ช่องให้เท่ากัน) ---
+st.header("Example Species")
+st.write("Reference images for the species supported by this classifier.")
 
-# ข้อมูลจำลองสำหรับตัวอย่าง
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "img": "https://img.freepik.com/free-photo/goldfish-swimming-water_23-2148814528.jpg"},
     {"name": "Betta Fish", "sci": "Betta splendens", "img": "https://img.freepik.com/free-photo/betta-fish-clipping-path_1232-1550.jpg"},
@@ -123,9 +132,6 @@ for idx, ex in enumerate(examples):
             st.image(ex['img'], use_container_width=True)
             st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
-            if st.button("Test", key=f"ex_{idx}", use_container_width=True):
-                st.info(f"Testing {ex['name']}...")
-                # คุณสามารถเพิ่ม Logic การดาวน์โหลดรูป ex['img'] มา Predict จริงได้ที่นี่
 
 st.divider()
 
@@ -133,7 +139,7 @@ if model is None:
     st.warning("⚠️ AI Model is not ready.")
 else:
     # --- Upload Section ---
-    uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload images to analyze...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
         st.subheader(f"📸 Image Preview ({len(uploaded_files)})")
@@ -171,7 +177,7 @@ else:
 
     st.divider()
 
-    # --- 4. Dashboard Section ---
+    # --- Dashboard Section ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         st.header("📊 Insight Dashboard")
