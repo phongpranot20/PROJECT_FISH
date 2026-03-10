@@ -1,7 +1,8 @@
 streamlit
-tensorflow-cpu
+tensorflow
 Pillow
 numpy
 pandas
 plotly
 gdown
+
