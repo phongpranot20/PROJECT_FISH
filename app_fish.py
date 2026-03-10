@@ -173,3 +173,4 @@ else:
         # Detailed Log Table
         st.subheader("📝 History Logs")
         st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
+
