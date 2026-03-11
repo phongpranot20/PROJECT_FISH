@@ -15,69 +15,61 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (เน้นแก้ให้กล่องขาวเด่นชัด) ---
+# --- 2. Custom CSS (บังคับ Card และรูปให้สูงเท่ากันเป๊ะ) ---
 st.markdown("""
     <style>
-    /* ✅ 1. พื้นหลังแอปสีฟ้าอ่อน */
-    .stApp { 
-        background-color: #F0F8FF !important; 
+    .stApp { background-color: #FFFFFF; }
+    
+    /* บังคับ Column ให้เท่ากัน */
+    [data-testid="column"] {
+        display: flex;
+        flex-direction: column;
     }
     
-    /* ✅ 2. จัดการกล่อง Card ให้เป็นสีขาวบริสุทธิ์ */
-    /* เราจะเจาะจงไปที่ div ทุกตัวที่อยู่ใน container เพื่อบังคับสีขาว */
+    /* บังคับ Card (Container) ให้สูงเท่ากัน */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #FFFFFF !important; /* สีขาวบริสุทธิ์ */
-        border-radius: 20px !important;
-        border: none !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important; /* เพิ่มเงาให้ดูมีมิติ */
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         padding: 0px !important;
-        margin-bottom: 20px !important;
+        overflow: hidden;
+        border: 1px solid #eee !important;
     }
 
-    /* บังคับรูปภาพให้สูงเท่ากันและขอบมนด้านบน */
+    /* บังคับรูปภาพให้สูงเท่ากันและตัดส่วนเกิน (object-fit) */
     [data-testid="stImage"] img {
         height: 180px !important; 
         width: 100% !important;
-        object-fit: cover !important;
-        border-radius: 20px 20px 0 0 !important;
+        object-fit: cover !important; 
     }
 
-    /* สไตล์ตัวหนังสือในกล่องขาว */
     .species-title { 
         font-weight: bold; 
-        font-size: 1.1rem; 
-        margin-top: 15px; 
-        padding: 0 15px; 
-        color: #1E1E1E !important;
+        font-size: 1rem; 
+        margin-top: 10px; 
+        padding: 0 10px; 
+        color: #333;
     }
     .species-sub { 
         font-style: italic; 
-        color: #8E8E93 !important; 
-        font-size: 0.85rem; 
-        padding: 0 15px 20px 15px;
+        color: #888; 
+        font-size: 0.8rem; 
+        padding: 0 10px 15px 10px;
     }
 
-    /* ตกแต่งส่วนหัวข้อหลัก */
-    .stApp h1, .stApp h2 {
-        color: #1E1E1E !important;
-    }
-
-    /* ปุ่มวิเคราะห์สี Gradient */
+    /* สไตล์ปุ่ม Start Analysis */
     div.stButton > button:first-child {
-        background: linear-gradient(to right, #00c6ff, #0072ff) !important;
+        background: linear-gradient(to right, #00c6ff, #0072ff);
         color: white !important;
-        border: none !important;
-        padding: 15px !important;
-        font-size: 20px !important;
-        font-weight: bold !important;
-        border-radius: 15px !important;
-        width: 100% !important;
-        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3) !important;
+        border: none; padding: 12px 30px; font-size: 18px; font-weight: bold;
+        border-radius: 12px; width: 100%; box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. ตั้งค่าไฟล์และโมเดล ---
+# --- 3. ตั้งค่าไฟล์ Log (ใช้ชื่อเดิมเพื่อให้ Dashboard ดึงข้อมูลมาโชว์ได้) ---
 HISTORY_FILE = 'summary_log_v4.csv' 
 MODEL_PATH = 'fish_model_v3.h5'
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
@@ -102,6 +94,7 @@ def save_to_csv(new_df):
     else:
         try:
             old_df = pd.read_csv(HISTORY_FILE)
+            # ตรวจสอบว่าคอลัมน์ตรงกันไหมก่อนต่อกัน
             pd.concat([old_df, new_df], ignore_index=True).to_csv(HISTORY_FILE, index=False)
         except:
             new_df.to_csv(HISTORY_FILE, index=False)
@@ -121,7 +114,6 @@ st.title("🐠 Fish Species Analysis")
 
 # --- SECTION: Example Species ---
 st.header("Example Species")
-
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
     {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
@@ -134,13 +126,16 @@ examples = [
 cols = st.columns(6)
 for idx, ex in enumerate(examples):
     with cols[idx]:
-        # ใช้ container ครอบเพื่อให้เกิด Card สีขาวที่ตั้งค่าไว้ใน CSS
         with st.container(border=True):
             if os.path.exists(ex['file']):
-                st.image(ex['file'], use_container_width=True)
+                try:
+                    st.image(ex['file'], use_container_width=True)
+                except:
+                    st.write("🖼️ Image Error")
             else:
                 st.write(f"🚫 {ex['file']} missing")
             
+            # แก้ไข Syntax Error จากครั้งก่อน
             st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
 
@@ -150,7 +145,7 @@ st.divider()
 if model is None:
     st.error("⚠️ AI Model is not ready.")
 else:
-    uploaded_files = st.file_uploader("Upload fish images for analysis...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
     if uploaded_files:
         st.subheader(f"📸 Image Preview")
@@ -185,11 +180,21 @@ else:
             st.success("✅ Analysis Complete!")
             st.rerun()
 
-    # --- 7. History Logs ---
+    # --- 7. Dashboard & Logs ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         if not df.empty:
-            st.header("📝 History Logs")
+            st.header("📊 Insight Dashboard")
+            
+            # โชว์ Metrics
+            m1, m2 = st.columns(2)
+            m1.metric("Total Analyzed", f"{len(df)} Images")
+            if 'Confidence' in df.columns:
+                m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
+
+            # โชว์ประวัติ
+            st.subheader("📝 History Logs")
+            # กรองแสดงเฉพาะคอลัมน์ที่ต้องการ เพื่อความสะอาด
             display_cols = [c for c in ['Timestamp', 'Filename', 'Species', 'Confidence'] if c in df.columns]
             st.dataframe(
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
