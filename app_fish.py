@@ -69,16 +69,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. ตั้งค่าไฟล์ Log (ใช้ชื่อเดิมเพื่อให้ Dashboard ดึงข้อมูลมาโชว์ได้) ---
-HISTORY_FILE = 'summary_log_v4.csv' 
+# --- 3. ตั้งค่าไฟล์ Log ---
+HISTORY_FILE = 'analysis_logs_v2.csv' 
 MODEL_PATH = 'fish_model_v3.h5'
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
 
 @st.cache_resource
 def load_my_model():
-    file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
-    url = f'https://drive.google.com/uc?id={file_id}'
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
+        file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
+        url = f'https://drive.google.com/uc?id={file_id}'
         try:
             with st.spinner('📦 Downloading AI Model...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
@@ -94,7 +94,6 @@ def save_to_csv(new_df):
     else:
         try:
             old_df = pd.read_csv(HISTORY_FILE)
-            # ตรวจสอบว่าคอลัมน์ตรงกันไหมก่อนต่อกัน
             pd.concat([old_df, new_df], ignore_index=True).to_csv(HISTORY_FILE, index=False)
         except:
             new_df.to_csv(HISTORY_FILE, index=False)
@@ -135,7 +134,7 @@ for idx, ex in enumerate(examples):
             else:
                 st.write(f"🚫 {ex['file']} missing")
             
-            # แก้ไข Syntax Error จากครั้งก่อน
+            # แก้ไขจุด Syntax Error บรรทัดนี้ (ใส่ f"..." ครอบข้อความ)
             st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
 
@@ -180,21 +179,11 @@ else:
             st.success("✅ Analysis Complete!")
             st.rerun()
 
-    # --- 7. Dashboard & Logs ---
+    # --- 7. History Logs ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         if not df.empty:
-            st.header("📊 Insight Dashboard")
-            
-            # โชว์ Metrics
-            m1, m2 = st.columns(2)
-            m1.metric("Total Analyzed", f"{len(df)} Images")
-            if 'Confidence' in df.columns:
-                m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
-
-            # โชว์ประวัติ
-            st.subheader("📝 History Logs")
-            # กรองแสดงเฉพาะคอลัมน์ที่ต้องการ เพื่อความสะอาด
+            st.header("📝 History Logs")
             display_cols = [c for c in ['Timestamp', 'Filename', 'Species', 'Confidence'] if c in df.columns]
             st.dataframe(
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
