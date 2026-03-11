@@ -4,6 +4,7 @@ from PIL import Image
 import numpy as np
 import os
 import pandas as pd
+import plotly.express as px  # สำหรับสร้างกราฟ
 from datetime import datetime
 import gdown
 
@@ -19,9 +20,7 @@ st.set_page_config(
 st.markdown("""
     <style>
     .stApp { background-color: #F0F8FF !important; }
-    
     [data-testid="column"] { display: flex; flex-direction: column; }
-    
     [data-testid="stVerticalBlockBorderWrapper"] {
         flex: 1; display: flex; flex-direction: column;
         background-color: white !important; 
@@ -31,17 +30,14 @@ st.markdown("""
         padding: 0px !important;
         margin-bottom: 20px !important;
     }
-
     [data-testid="stImage"] img {
         height: 180px !important; 
         width: 100% !important;
         object-fit: cover !important;
         border-radius: 20px 20px 0 0 !important;
     }
-
     .species-title { font-weight: bold; font-size: 1.1rem; margin-top: 15px; padding: 0 15px; color: #1E1E1E !important; }
     .species-sub { font-style: italic; color: #8E8E93 !important; font-size: 0.85rem; padding: 0 15px 20px 15px; }
-
     div.stButton > button:first-child {
         background: linear-gradient(to right, #00c6ff, #0072ff) !important;
         color: white !important;
@@ -94,7 +90,7 @@ with st.sidebar:
 # --- 5. Main Interface ---
 st.title("🐠 Fish Species Analysis")
 
-# --- SECTION: Example Species ---
+# --- Example Species ---
 st.header("Example Species")
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
@@ -120,58 +116,63 @@ for idx, ex in enumerate(examples):
 st.divider()
 
 # --- 6. Upload Section ---
-if model is not None:
-    uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
-
-    if uploaded_files:
-        st.subheader(f"📸 Image Preview")
-        with st.container(height=300, border=True):
-            p_cols = st.columns(6)
-            for idx, file in enumerate(uploaded_files):
-                with p_cols[idx % 6]:
-                    st.image(Image.open(file), caption=file.name, use_container_width=True)
-
-        if st.button('🚀 START ANALYSIS NOW'):
-            results = []
-            status_text = st.empty()
-            progress_bar = st.progress(0)
-            for i, file in enumerate(uploaded_files):
-                status_text.text(f"🔍 Analyzing: {file.name}")
-                img = Image.open(file).convert('RGB').resize((180, 180))
-                img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
-                pred = model.predict(img_array, verbose=0)
-                res_idx = np.argmax(pred[0])
-                results.append({
-                    'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    'Filename': file.name,
-                    'Species': CLASS_NAMES[res_idx],
-                    'Confidence': float(np.max(pred[0]) * 100)
-                })
-                progress_bar.progress((i + 1) / len(uploaded_files))
-            save_to_csv(pd.DataFrame(results))
-            status_text.empty()
-            progress_bar.empty()
-            st.success("✅ Analysis Complete!")
-            st.rerun()
+uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+if uploaded_files:
+    if st.button('🚀 START ANALYSIS NOW'):
+        results = []
+        status_text = st.empty()
+        progress_bar = st.progress(0)
+        for i, file in enumerate(uploaded_files):
+            status_text.text(f"🔍 Analyzing: {file.name}")
+            img = Image.open(file).convert('RGB').resize((180, 180))
+            img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
+            pred = model.predict(img_array, verbose=0)
+            res_idx = np.argmax(pred[0])
+            results.append({
+                'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'Filename': file.name,
+                'Species': CLASS_NAMES[res_idx],
+                'Confidence': float(np.max(pred[0]) * 100)
+            })
+            progress_bar.progress((i + 1) / len(uploaded_files))
+        save_to_csv(pd.DataFrame(results))
+        status_text.empty()
+        progress_bar.empty()
+        st.success("✅ Analysis Complete!")
+        st.rerun()
 
 st.divider()
 
-# --- 7. Dashboard & Logs (ย้ายออกมานอกเงื่อนไข upload เพื่อให้โชว์ตลอดเวลา) ---
+# --- 7. Dashboard (เอากราฟวงกลมและกราฟจุดกลับมา) ---
 st.header("📊 Insight Dashboard")
 if os.path.exists(HISTORY_FILE):
     df = pd.read_csv(HISTORY_FILE)
     if not df.empty:
-        # Metrics Section
+        # Metrics Row
         m1, m2 = st.columns(2)
         m1.metric("Total Analyzed", f"{len(df)} Images")
         if 'Confidence' in df.columns:
             m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
 
+        # กราฟ Row
+        c1, c2 = st.columns([1, 1.2])
+        
+        with c1:
+            if 'Species' in df.columns:
+                # กราฟวงกลม (Pie Chart)
+                fig_pie = px.pie(df, names='Species', title="Species Distribution", 
+                                hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.plotly_chart(fig_pie, use_container_width=True)
+        
+        with c2:
+            if 'Timestamp' in df.columns and 'Confidence' in df.columns:
+                # กราฟจุด (Scatter Plot)
+                fig_scatter = px.scatter(df, x='Timestamp', y='Confidence', color='Species',
+                                        title="Confidence Levels over Time",
+                                        hover_data=['Filename'])
+                st.plotly_chart(fig_scatter, use_container_width=True)
+
         # History Logs Table
         st.subheader("📝 History Logs")
         display_cols = [c for c in ['Timestamp', 'Filename', 'Species', 'Confidence'] if c in df.columns]
         st.dataframe(df[display_cols].sort_values(by='Timestamp', ascending=False), use_container_width=True)
-    else:
-        st.info("No analysis data found in the log file.")
-else:
-    st.info("Log file not found. Start an analysis to create your dashboard!")
