@@ -122,7 +122,7 @@ st.header("Class of Fish")
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
     {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
-    {"name": "Cichlide", "sci": "Cichlidae family", "file": "cichilde.jpg"},
+    {"name": "Cichlid", "sci": "Cichlid family", "file": "cichilde.jpg"},
     {"name": "Koi", "sci": "Cyprinus rubrofuscus", "file": "koifish.jpg"},
     {"name": "Neon Tetra", "sci": "Paracheirodon innesi", "file": "neontetra.jpg"},
     {"name": "Angelfish", "sci": "Pterophyllum", "file": "anglefish.jpg"} 
@@ -213,6 +213,7 @@ else:
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
                 use_container_width=True
             )
+
 
 
 
