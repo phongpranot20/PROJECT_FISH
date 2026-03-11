@@ -118,7 +118,7 @@ with st.sidebar:
 st.title("🐠 Fish Species Analysis")
 
 # --- SECTION: Example Species ---
-st.header("6 Class of Fish")
+st.header("Class of Fish")
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
     {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
@@ -213,5 +213,6 @@ else:
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
                 use_container_width=True
             )
+
 
 
