@@ -16,10 +16,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (Card Styling & Layout) ---
+# --- 2. Custom CSS (เน้นเฉพาะ Card Layout และปุ่ม) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #FFFFFF; }
+    /* ลบการบังคับสีพื้นหลังออกเพื่อให้รองรับ Dark Mode */
     
     /* บังคับ Column ให้เท่ากัน */
     [data-testid="column"] {
@@ -33,13 +33,13 @@ st.markdown("""
         display: flex;
         flex-direction: column;
         border-radius: 12px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         padding: 0px !important;
         overflow: hidden;
-        border: 1px solid #eee !important;
+        border: 1px solid rgba(128, 128, 128, 0.2) !important;
     }
 
-    /* บังคับรูปภาพให้สูงเท่ากันและตัดส่วนเกิน (object-fit) */
+    /* บังคับรูปภาพให้สูงเท่ากันและตัดส่วนเกิน */
     [data-testid="stImage"] img {
         height: 180px !important; 
         width: 100% !important;
@@ -51,11 +51,10 @@ st.markdown("""
         font-size: 1rem; 
         margin-top: 10px; 
         padding: 0 10px; 
-        color: #333;
     }
     .species-sub { 
         font-style: italic; 
-        color: #888; 
+        opacity: 0.7;
         font-size: 0.8rem; 
         padding: 0 10px 15px 10px;
     }
@@ -118,12 +117,12 @@ with st.sidebar:
 st.title("🐠 Fish Species Analysis")
 
 # --- SECTION: Example Species ---
-st.header("Class of Fish")
+st.header("Example Species")
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
     {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
-    {"name": "Cichlid", "sci": "Cichlid family", "file": "cichilde.jpg"},
-    {"name": "Koi Fish", "sci": "Cyprinus rubrofuscus", "file": "koifish.jpg"},
+    {"name": "Cichlide", "sci": "Cichlidae family", "file": "cichilde.jpg"},
+    {"name": "Koi", "sci": "Cyprinus rubrofuscus", "file": "koifish.jpg"},
     {"name": "Neon Tetra", "sci": "Paracheirodon innesi", "file": "neontetra.jpg"},
     {"name": "Angelfish", "sci": "Pterophyllum", "file": "anglefish.jpg"} 
 ]
@@ -185,36 +184,31 @@ else:
             st.balloons()
             st.rerun()
 
-    # --- 7. Dashboard Section (นำกลับมาตามไฟล์เดิม) ---
+    # --- 7. Dashboard Section ---
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         if not df.empty:
             st.header("📊 Insight Dashboard")
             
-            # Simplified Metrics
             m1, m2 = st.columns(2)
             m1.metric("Total Analyzed", f"{len(df)} Images")
             m2.metric("Average Confidence", f"{df['Confidence'].mean():.2f}%")
 
-            # Visual Charts
             c1, c2 = st.columns([1, 1.2])
             with c1:
                 fig_pie = px.pie(df, names='Species', title="Species Distribution", hole=0.4)
+                # ปรับแต่งสีกราฟให้เข้ากับธีม
+                fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_pie, use_container_width=True)
             with c2:
                 fig_scatter = px.scatter(df, x='Timestamp', y='Confidence', color='Species', 
                                         hover_data=['Filename'], title="Confidence Levels Over Time")
+                fig_scatter.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_scatter, use_container_width=True)
 
-            # Detailed Log Table
             st.subheader("📝 History Logs")
             display_cols = [c for c in ['Timestamp', 'Filename', 'Species', 'Confidence'] if c in df.columns]
             st.dataframe(
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
                 use_container_width=True
             )
-
-
-
-
-
