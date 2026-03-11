@@ -15,71 +15,64 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (ปรับสีพื้นหลังแอป และกล่อง Card สีขาวตามรูปที่ 2) ---
+# --- 2. Custom CSS (เน้นแก้ให้กล่องขาวเด่นชัด) ---
 st.markdown("""
     <style>
-    /* ✅ 1. สีพื้นหลังของแอป (สีฟ้าอ่อน) */
+    /* ✅ 1. พื้นหลังแอปสีฟ้าอ่อน */
     .stApp { 
-        background-color: #F0F8FF; 
+        background-color: #F0F8FF !important; 
     }
     
-    /* ✅ 2. ปรับแต่งกล่อง Card ให้เป็นสีขาวและขอบมน (ตามรูปที่ 2) */
+    /* ✅ 2. จัดการกล่อง Card ให้เป็นสีขาวบริสุทธิ์ */
+    /* เราจะเจาะจงไปที่ div ทุกตัวที่อยู่ใน container เพื่อบังคับสีขาว */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        background-color: white !important; /* พื้นหลังกล่องสีขาว */
-        border-radius: 20px !important;    /* ขอบมนมากขึ้นตามรูป */
+        background-color: #FFFFFF !important; /* สีขาวบริสุทธิ์ */
+        border-radius: 20px !important;
+        border: none !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important; /* เพิ่มเงาให้ดูมีมิติ */
         padding: 0px !important;
-        border: none !important;           /* เอาเส้นขอบออก */
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05) !important; /* เพิ่มเงาให้นุ่มนวล */
-        overflow: hidden;
-        transition: transform 0.3s ease;
+        margin-bottom: 20px !important;
     }
 
-    [data-testid="stVerticalBlockBorderWrapper"]:hover {
-        transform: translateY(-5px); /* เวลาเอาเมาส์ชี้ให้กล่องลอยขึ้นนิดนึง */
-    }
-
-    /* บังคับรูปภาพให้สูงเท่ากันเป๊ะ */
+    /* บังคับรูปภาพให้สูงเท่ากันและขอบมนด้านบน */
     [data-testid="stImage"] img {
         height: 180px !important; 
         width: 100% !important;
-        object-fit: cover !important; 
+        object-fit: cover !important;
+        border-radius: 20px 20px 0 0 !important;
     }
 
-    /* จัดแต่งตัวอักษรด้านล่างรูป */
+    /* สไตล์ตัวหนังสือในกล่องขาว */
     .species-title { 
         font-weight: bold; 
         font-size: 1.1rem; 
         margin-top: 15px; 
         padding: 0 15px; 
-        color: #1E1E1E;
+        color: #1E1E1E !important;
     }
     .species-sub { 
         font-style: italic; 
-        color: #8E8E93; 
+        color: #8E8E93 !important; 
         font-size: 0.85rem; 
         padding: 0 15px 20px 15px;
     }
 
-    /* ปรับแต่งส่วนหัวข้อหลัก */
+    /* ตกแต่งส่วนหัวข้อหลัก */
     .stApp h1, .stApp h2 {
-        color: #262730 !important;
-        font-weight: 800 !important;
+        color: #1E1E1E !important;
     }
 
-    /* ปุ่ม Start Analysis */
+    /* ปุ่มวิเคราะห์สี Gradient */
     div.stButton > button:first-child {
-        background: linear-gradient(to right, #00c6ff, #0072ff);
+        background: linear-gradient(to right, #00c6ff, #0072ff) !important;
         color: white !important;
-        border: none; 
-        padding: 15px; 
-        font-size: 20px; 
-        font-weight: bold;
-        border-radius: 15px; 
-        width: 100%; 
-        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+        border: none !important;
+        padding: 15px !important;
+        font-size: 20px !important;
+        font-weight: bold !important;
+        border-radius: 15px !important;
+        width: 100% !important;
+        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3) !important;
     }
     </style>
     """, unsafe_allow_html=True)
