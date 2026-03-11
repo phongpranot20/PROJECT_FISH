@@ -12,7 +12,7 @@ import gdown
 st.set_page_config(
     page_title="Fish Species Analysis", 
     layout="wide", 
-    page_icon="🐠",
+    page_icon="",
     initial_sidebar_state="expanded"
 )
 
@@ -212,4 +212,5 @@ else:
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
                 use_container_width=True
             )
+
 
