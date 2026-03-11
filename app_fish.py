@@ -4,11 +4,11 @@ from PIL import Image
 import numpy as np
 import os
 import pandas as pd
-import plotly.express as px # ✅ ต้องใช้ตัวนี้เพื่อสร้างกราฟ
+import plotly.express as px
 from datetime import datetime
 import gdown
 
-# --- 1. Page Config ---
+# --- 1. Page Config & Forced Light Theme ---
 st.set_page_config(
     page_title="Fish Species Analysis", 
     layout="wide", 
@@ -16,56 +16,68 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (พื้นหลังฟ้าอ่อน + กล่องขาวมนมีเงา) ---
+# --- 2. Custom CSS (Theme & Buttons) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #F0F8FF !important; }
-    [data-testid="column"] { display: flex; flex-direction: column; }
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        flex: 1; display: flex; flex-direction: column;
-        background-color: white !important; 
-        border-radius: 20px !important;
-        border: none !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important;
-        padding: 0px !important;
-        margin-bottom: 20px !important;
+    /* Force Light Theme Colors */
+    .stApp {
+        background-color: #FFFFFF;
     }
-    [data-testid="stImage"] img {
-        height: 180px !important; 
-        width: 100% !important;
-        object-fit: cover !important;
-        border-radius: 20px 20px 0 0 !important;
+    .stApp p, .stApp h1, .stApp h2, .stApp h3, .stApp span, .stApp label {
+        color: #262730 !important;
     }
-    .species-title { font-weight: bold; font-size: 1.1rem; margin-top: 15px; padding: 0 15px; color: #1E1E1E !important; }
-    .species-sub { font-style: italic; color: #8E8E93 !important; font-size: 0.85rem; padding: 0 15px 20px 15px; }
+    
+    /* Standout Gradient Analysis Button */
     div.stButton > button:first-child {
-        background: linear-gradient(to right, #00c6ff, #0072ff) !important;
+        background: linear-gradient(to right, #00c6ff, #0072ff);
         color: white !important;
-        border: none !important; padding: 15px !important; font-size: 18px !important;
-        font-weight: bold !important; border-radius: 12px !important; width: 100% !important;
+        border: none;
+        padding: 15px 30px;
+        font-size: 22px;
+        font-weight: bold;
+        border-radius: 12px;
+        width: 100%;
+        transition: 0.3s;
+        box-shadow: 0 4px 15px rgba(0, 114, 255, 0.3);
+        margin-top: 10px;
+    }
+    div.stButton > button:first-child:hover {
+        transform: scale(1.01);
+        box-shadow: 0 6px 20px rgba(0, 114, 255, 0.5);
+        background: linear-gradient(to right, #0072ff, #00c6ff);
+    }
+    
+    /* Sidebar styling */
+    .stSidebar {
+        background-color: #F8F9FB;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. Path & Model Setup ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# ✅ ใช้ไฟล์เดิมเพื่อดึงข้อมูลเก่ามาโชว์กราฟ
-HISTORY_FILE = os.path.join(BASE_DIR, 'summary_log_v4.csv') 
-MODEL_PATH = os.path.join(BASE_DIR, 'fish_model_v3.h5')
-CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
+HISTORY_FILE = 'fish_prediction_history.csv'
+MODEL_PATH = 'fish_model_v3.h5'
+CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Nenotetra']
 
 @st.cache_resource
 def load_my_model():
+    file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
+    url = f'https://drive.google.com/uc?id={file_id}'
+    
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
-        file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
-        url = f'https://drive.google.com/uc?id={file_id}'
+        if os.path.exists(MODEL_PATH): os.remove(MODEL_PATH)
         try:
-            with st.spinner('📦 Downloading AI Model...'):
+            with st.spinner('📦 Loading AI Engine...'):
                 gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
-        except: return None
+        except Exception as e:
+            st.error(f"❌ Connection Error: {e}")
+            return None
+
     if os.path.exists(MODEL_PATH):
-        try: return tf.keras.models.load_model(MODEL_PATH, compile=False)
-        except: return None
+        try:
+            # compile=False to handle version mismatch
+            return tf.keras.models.load_model(MODEL_PATH, compile=False)
+        except Exception:
+            return None
     return None
 
 def save_to_csv(new_df):
@@ -74,13 +86,14 @@ def save_to_csv(new_df):
     else:
         try:
             old_df = pd.read_csv(HISTORY_FILE)
-            pd.concat([old_df, new_df], ignore_index=True).to_csv(HISTORY_FILE, index=False)
-        except:
+            combined_df = pd.concat([old_df, new_df], ignore_index=True)
+            combined_df.to_csv(HISTORY_FILE, index=False)
+        except Exception:
             new_df.to_csv(HISTORY_FILE, index=False)
 
 model = load_my_model()
 
-# --- 4. Sidebar ---
+# --- Sidebar Controls ---
 with st.sidebar:
     st.header("⚙️ App Controls")
     if st.button("🗑️ Clear History Data", use_container_width=True):
@@ -88,90 +101,76 @@ with st.sidebar:
             os.remove(HISTORY_FILE)
             st.rerun()
 
-# --- 5. Main Interface ---
+# --- 3. Main Interface ---
 st.title("🐠 Fish Species Analysis")
+st.write("Upload fish images for instant species identification and tracking.")
 
-# --- Example Species ---
-st.header("Example Species")
-examples = [
-    {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
-    {"name": "Betta Fish", "sci": "Betta splendens", "file": "betta.jpg"},
-    {"name": "Cichlide", "sci": "Cichlidae family", "file": "cichilde.jpg"},
-    {"name": "Koi", "sci": "Cyprinus rubrofuscus", "file": "koifish.jpg"},
-    {"name": "Neon Tetra", "sci": "Paracheirodon innesi", "file": "neontetra.jpg"},
-    {"name": "Angelfish", "sci": "Pterophyllum", "file": "anglefish.jpg"} 
-]
+if model is None:
+    st.warning("⚠️ AI Model is not ready. Please verify Google Drive permissions.")
+else:
+    # Upload Section
+    uploaded_files = st.file_uploader("Select images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
-cols = st.columns(6)
-for idx, ex in enumerate(examples):
-    with cols[idx]:
-        with st.container(border=True):
-            img_path = os.path.join(BASE_DIR, ex['file'])
-            if os.path.exists(img_path):
-                st.image(img_path, use_container_width=True)
-            else:
-                st.write(f"🚫 {ex['file']} missing")
-            st.markdown(f"<div class='species-title'>{ex['name']}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='species-sub'>{ex['sci']}</div>", unsafe_allow_html=True)
+    if uploaded_files:
+        st.subheader(f"📸 Image Preview ({len(uploaded_files)})")
+        
+        # Scrollable Container for Preview
+        with st.container(height=350, border=True):
+            cols = st.columns(6)
+            for idx, file in enumerate(uploaded_files):
+                with cols[idx % 6]:
+                    st.image(Image.open(file), caption=file.name, use_container_width=True)
 
-st.divider()
+        # Big Action Button
+        if st.button('🚀 START ANALYSIS NOW'):
+            results = []
+            status_text = st.empty()
+            progress_bar = st.progress(0)
+            
+            for i, file in enumerate(uploaded_files):
+                status_text.text(f"🔍 Analyzing: {file.name}")
+                img = Image.open(file).convert('RGB').resize((180, 180))
+                img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
+                
+                pred = model.predict(img_array, verbose=0)
+                res_idx = np.argmax(pred[0])
+                results.append({
+                    'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'Filename': file.name,
+                    'Species': CLASS_NAMES[res_idx],
+                    'Confidence': np.max(pred[0]) * 100
+                })
+                progress_bar.progress((i + 1) / len(uploaded_files))
 
-# --- 6. Upload Section ---
-uploaded_files = st.file_uploader("Upload fish images...", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
-if uploaded_files:
-    if st.button('🚀 START ANALYSIS NOW'):
-        results = []
-        for file in uploaded_files:
-            img = Image.open(file).convert('RGB').resize((180, 180))
-            img_array = tf.expand_dims(tf.keras.utils.img_to_array(img), 0)
-            pred = model.predict(img_array, verbose=0)
-            res_idx = np.argmax(pred[0])
-            results.append({
-                'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'Filename': file.name,
-                'Species': CLASS_NAMES[res_idx],
-                'Confidence': float(np.max(pred[0]) * 100)
-            })
-        save_to_csv(pd.DataFrame(results))
-        st.success("✅ Analysis Complete!")
-        st.rerun()
+            save_to_csv(pd.DataFrame(results))
+            status_text.empty()
+            progress_bar.empty()
+            st.success("✅ Analysis Complete!")
+            st.balloons()
 
-st.divider()
+    st.divider()
 
-# --- 7. Dashboard (ดึงกราฟ Donut และ Scatter กลับมา) ---
-st.header("📊 Insight Dashboard")
-if os.path.exists(HISTORY_FILE):
-    df = pd.read_csv(HISTORY_FILE)
-    if not df.empty:
-        # จัดการชื่อคอลัมน์ให้เป็นมาตรฐาน
-        df.columns = [c.capitalize() for c in df.columns]
-
-        # Metrics
+    # --- 4. Dashboard Section ---
+    if os.path.exists(HISTORY_FILE):
+        df = pd.read_csv(HISTORY_FILE)
+        st.header("📊 Insight Dashboard")
+        
+        # Simplified Metrics
         m1, m2 = st.columns(2)
         m1.metric("Total Analyzed", f"{len(df)} Images")
-        if 'Confidence' in df.columns:
-            m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
+        m2.metric("Average Accuracy", f"{df['Confidence'].mean():.2f}%")
 
-        # ✅ กราฟ Row
+        # Visual Charts
         c1, c2 = st.columns([1, 1.2])
-        
         with c1:
-            if 'Species' in df.columns:
-                # 🍩 Donut Chart (ตามรูปที่คุณส่งมา)
-                fig_donut = px.pie(df, names='Species', title="Species Distribution", 
-                                 hole=0.5, # กำหนดรูตรงกลางให้เป็น Donut
-                                 color_discrete_sequence=px.colors.qualitative.Pastel)
-                st.plotly_chart(fig_donut, use_container_width=True)
-        
+            fig_pie = px.pie(df, names='Species', title="Species Distribution", hole=0.4)
+            st.plotly_chart(fig_pie, use_container_width=True)
         with c2:
-            if 'Timestamp' in df.columns and 'Confidence' in df.columns:
-                # 📍 Scatter Plot (กราฟจุด)
-                fig_scatter = px.scatter(df, x='Timestamp', y='Confidence', color='Species',
-                                        title="Confidence Trends", hover_data=['Filename'])
-                st.plotly_chart(fig_scatter, use_container_width=True)
+            fig_scatter = px.scatter(df, x='Timestamp', y='Confidence', color='Species', 
+                                    hover_data=['Filename'], title="Confidence Levels Over Time")
+            st.plotly_chart(fig_scatter, use_container_width=True)
 
-        # History Logs Table
+        # Detailed Log Table
         st.subheader("📝 History Logs")
-        st.dataframe(df.sort_values(by=df.columns[0], ascending=False), use_container_width=True)
-else:
-    st.info("Log file not found. Please analyze some images first.")
+        st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
+
