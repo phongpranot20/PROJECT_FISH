@@ -8,7 +8,7 @@ import plotly.express as px
 from datetime import datetime
 import gdown
 
-# --- 1. Page Config ---
+
 st.set_page_config(
     page_title="Fish Species Analysis", 
     layout="wide", 
@@ -16,18 +16,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. Custom CSS (เน้นเฉพาะ Card Layout และปุ่ม) ---
+
 st.markdown("""
     <style>
-    /* ลบการบังคับสีพื้นหลังออกเพื่อให้รองรับ Dark Mode */
+   
     
-    /* บังคับ Column ให้เท่ากัน */
+    
     [data-testid="column"] {
         display: flex;
         flex-direction: column;
     }
     
-    /* บังคับ Card (Container) ให้สูงเท่ากัน */
+    
     [data-testid="stVerticalBlockBorderWrapper"] {
         flex: 1;
         display: flex;
@@ -39,7 +39,7 @@ st.markdown("""
         border: 1px solid rgba(128, 128, 128, 0.2) !important;
     }
 
-    /* บังคับรูปภาพให้สูงเท่ากันและตัดส่วนเกิน */
+    
     [data-testid="stImage"] img {
         height: 180px !important; 
         width: 100% !important;
@@ -74,7 +74,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. Configuration & Model Loading ---
+
 HISTORY_FILE = 'analysis_logs_v2.csv' 
 MODEL_PATH = 'fish_model_v3.h5'
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
@@ -105,7 +105,7 @@ def save_to_csv(new_df):
 
 model = load_my_model()
 
-# --- 4. Sidebar ---
+
 with st.sidebar:
     st.header("⚙️ App Controls")
     if st.button("🗑️ Clear History Data", use_container_width=True):
@@ -113,10 +113,10 @@ with st.sidebar:
             os.remove(HISTORY_FILE)
             st.rerun()
 
-# --- 5. Main Interface ---
+
 st.title("Fish Species Analysis")
 
-# --- SECTION: Example Species ---
+
 st.header("Class of Species")
 examples = [
     {"name": "Goldfish", "sci": "Carassius auratus", "file": "goldfish.jpg"},
@@ -144,7 +144,7 @@ for idx, ex in enumerate(examples):
 
 st.divider()
 
-# --- 6. Upload & Analysis ---
+
 if model is None:
     st.error("⚠️ AI Model is not ready.")
 else:
@@ -184,7 +184,7 @@ else:
             st.balloons()
             st.rerun()
 
-    # --- 7. Dashboard Section ---
+ 
     if os.path.exists(HISTORY_FILE):
         df = pd.read_csv(HISTORY_FILE)
         if not df.empty:
@@ -197,7 +197,7 @@ else:
             c1, c2 = st.columns([1, 1.2])
             with c1:
                 fig_pie = px.pie(df, names='Species', title="Species Distribution", hole=0.4)
-                # ปรับแต่งสีกราฟให้เข้ากับธีม
+                
                 fig_pie.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                 st.plotly_chart(fig_pie, use_container_width=True)
             with c2:
@@ -212,6 +212,7 @@ else:
                 df[display_cols].sort_values(by='Timestamp', ascending=False), 
                 use_container_width=True
             )
+
 
 
 
