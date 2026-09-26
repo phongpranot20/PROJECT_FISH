@@ -13,24 +13,22 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Initialize FastAPI App
-app = FastAPI(
-    title="AquaAI - Fish Species Classifier",
-    description="High-precision deep learning classifier for fish species identification",
-    version="2.0.0"
-)
+# Detect base directory (handles both local run and Vercel serverless api/ directory)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+if os.path.basename(CURRENT_DIR) == "api":
+    BASE_DIR = os.path.dirname(CURRENT_DIR)
+else:
+    BASE_DIR = CURRENT_DIR
 
-# Enable CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# On Vercel / serverless environments, only /tmp is writable
+if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
+    HISTORY_FILE = "/tmp/analysis_logs_v2.csv"
+else:
+    HISTORY_FILE = os.path.join(BASE_DIR, "analysis_logs_v2.csv")
 
-HISTORY_FILE = 'analysis_logs_v2.csv'
-MODEL_PATH = 'fish_model_v3.h5'
+MODEL_PATH = os.path.join(BASE_DIR, "fish_model_v3.tflite")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
 
 SPECIES_METADATA = [
@@ -90,37 +88,65 @@ SPECIES_METADATA = [
     }
 ]
 
-# Lazy-loaded model instance
-_model = None
+# Initialize FastAPI
+app = FastAPI(
+    title="AquaAI - Fish Species Classifier",
+    description="High-precision deep learning classifier for fish species identification (Vercel & Cloud Ready)",
+    version="2.1.0"
+)
 
-def get_model():
-    global _model
-    if _model is not None:
-        return _model
-    
-    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1000000:
-        import gdown
-        file_id = '1mvtOAcFbM2PFxDVv5jtDnqI7-ZCsRhO6'
-        url = f'https://drive.google.com/uc?id={file_id}'
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# TFLite Runtime Interpreter Loader
+_interpreter = None
+
+def get_interpreter():
+    global _interpreter
+    if _interpreter is not None:
+        return _interpreter
+
+    # Dynamic fallback import for LiteRT / TFLite runtime
+    try:
+        from ai_edge_litert.interpreter import Interpreter
+    except ImportError:
         try:
-            print("[INFO] Downloading AI Model...")
-            gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
-        except Exception as e:
-            print(f"Failed to download model: {e}")
-            return None
+            import tflite_runtime.interpreter as tflite
+            Interpreter = tflite.Interpreter
+        except ImportError:
+            import tensorflow as tf
+            Interpreter = tf.lite.Interpreter
 
     if os.path.exists(MODEL_PATH):
+        print(f"[INFO] Loading TFLite model from {MODEL_PATH}...")
+        _interpreter = Interpreter(model_path=MODEL_PATH)
+        _interpreter.allocate_tensors()
+        print("[INFO] TFLite model loaded successfully!")
+        return _interpreter
+
+    # Fallback to .h5 if .tflite is missing locally
+    h5_path = os.path.join(BASE_DIR, "fish_model_v3.h5")
+    if os.path.exists(h5_path):
         try:
             import tensorflow as tf
-            print("[INFO] Loading TensorFlow model...")
-            _model = tf.keras.models.load_model(MODEL_PATH, compile=False)
-            print("[INFO] Model loaded successfully!")
-            return _model
+            print(f"[INFO] Converting {h5_path} to TFLite...")
+            m = tf.keras.models.load_model(h5_path, compile=False)
+            converter = tf.lite.TFLiteConverter.from_keras_model(m)
+            tflite_bytes = converter.convert()
+            with open(MODEL_PATH, "wb") as f:
+                f.write(tflite_bytes)
+            _interpreter = Interpreter(model_path=MODEL_PATH)
+            _interpreter.allocate_tensors()
+            return _interpreter
         except Exception as e:
-            print(f"[ERROR] Error loading model: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+            print(f"[ERROR] Could not convert h5: {e}")
+
     return None
 
 def save_log(result_records: list):
@@ -128,33 +154,36 @@ def save_log(result_records: list):
     if not result_records:
         return
     new_df = pd.DataFrame(result_records)
-    if not os.path.isfile(HISTORY_FILE):
-        new_df.to_csv(HISTORY_FILE, index=False)
-    else:
-        try:
+    try:
+        if not os.path.isfile(HISTORY_FILE):
+            new_df.to_csv(HISTORY_FILE, index=False)
+        else:
             old_df = pd.read_csv(HISTORY_FILE)
             pd.concat([old_df, new_df], ignore_index=True).to_csv(HISTORY_FILE, index=False)
-        except Exception:
-            new_df.to_csv(HISTORY_FILE, index=False)
+    except Exception as e:
+        print(f"[WARN] Unable to write log file: {e}")
 
 def predict_single_image(image: Image.Image, filename: str) -> dict:
-    model = get_model()
-    if model is None:
-        raise HTTPException(status_code=503, detail="AI Model is not loaded or ready.")
+    interpreter = get_interpreter()
+    if interpreter is None:
+        raise HTTPException(status_code=503, detail="AI Model is not ready.")
 
-    import tensorflow as tf
     img_rgb = image.convert('RGB').resize((180, 180))
-    img_array = tf.expand_dims(tf.keras.utils.img_to_array(img_rgb), 0)
-    
+    input_data = np.expand_dims(np.array(img_rgb, dtype=np.float32), axis=0)
+
     start_time = time.time()
-    preds = model.predict(img_array, verbose=0)[0]
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    interpreter.set_tensor(input_details[0]['index'], input_data)
+    interpreter.invoke()
+    preds = interpreter.get_tensor(output_details[0]['index'])[0]
     latency_ms = round((time.time() - start_time) * 1000, 1)
 
     top_idx = int(np.argmax(preds))
     top_species = CLASS_NAMES[top_idx]
     top_confidence = round(float(np.max(preds) * 100), 2)
 
-    # Detailed scores for all classes
     all_scores = [
         {"species": name, "confidence": round(float(score * 100), 2)}
         for name, score in zip(CLASS_NAMES, preds)
@@ -179,13 +208,14 @@ def get_species_list():
 
 @app.get("/api/model-status")
 def get_model_status():
-    model = get_model()
-    has_model = model is not None
+    interp = get_interpreter()
+    has_model = interp is not None
     model_size = os.path.getsize(MODEL_PATH) if os.path.exists(MODEL_PATH) else 0
     return {
         "ready": has_model,
-        "model_file": MODEL_PATH,
+        "model_file": os.path.basename(MODEL_PATH),
         "model_size_mb": round(model_size / (1024 * 1024), 2),
+        "format": "TensorFlow Lite",
         "classes": CLASS_NAMES
     }
 
@@ -223,10 +253,11 @@ class SamplePredictRequest(BaseModel):
 
 @app.post("/api/predict-sample")
 def predict_sample_image(req: SamplePredictRequest):
-    if not os.path.exists(req.sample_file):
+    sample_path = os.path.join(BASE_DIR, os.path.basename(req.sample_file))
+    if not os.path.exists(sample_path):
         raise HTTPException(status_code=404, detail="Sample image file not found.")
 
-    pil_img = Image.open(req.sample_file)
+    pil_img = Image.open(sample_path)
     res = predict_single_image(pil_img, req.sample_file)
     save_log([{
         'Timestamp': res['timestamp'],
@@ -252,7 +283,10 @@ def get_history_logs():
 @app.delete("/api/history")
 def clear_history_logs():
     if os.path.exists(HISTORY_FILE):
-        os.remove(HISTORY_FILE)
+        try:
+            os.remove(HISTORY_FILE)
+        except Exception:
+            pass
     return {"message": "History cleared successfully."}
 
 @app.get("/api/stats")
@@ -277,8 +311,6 @@ def get_statistics():
         species_counts = df['Species'].value_counts().to_dict()
         avg_confidence = round(float(df['Confidence'].mean()), 2)
         total_analyzed = int(len(df))
-
-        # Recent 20 items for timeline
         recent_df = df.tail(20)
         timeline = recent_df[['Timestamp', 'Species', 'Confidence']].to_dict(orient='records')
 
@@ -291,26 +323,25 @@ def get_statistics():
     except Exception as e:
         return {"error": str(e)}
 
-# Serve sample images from root folder
+# Serve sample images
 @app.get("/images/{image_name}")
 def serve_image(image_name: str):
-    # Sanitize path to prevent traversal
     safe_name = os.path.basename(image_name)
-    file_path = os.path.join(os.path.dirname(__file__), safe_name)
+    file_path = os.path.join(BASE_DIR, safe_name)
     if os.path.exists(file_path):
         return FileResponse(file_path)
     raise HTTPException(status_code=404, detail="Image not found")
 
 # Serve frontend static assets
-os.makedirs("static", exist_ok=True)
-os.makedirs("static/css", exist_ok=True)
-os.makedirs("static/js", exist_ok=True)
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")
 def read_root():
-    return FileResponse("static/index.html")
+    index_file = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {"status": "AquaAI API Online"}
 
 if __name__ == "__main__":
     import uvicorn
