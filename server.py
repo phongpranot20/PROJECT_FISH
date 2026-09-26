@@ -7,27 +7,43 @@ from typing import List
 import numpy as np
 from PIL import Image
 import pandas as pd
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Detect base directory (handles both local run and Vercel serverless api/ directory)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-if os.path.basename(CURRENT_DIR) == "api":
-    BASE_DIR = os.path.dirname(CURRENT_DIR)
-else:
-    BASE_DIR = CURRENT_DIR
+PARENT_DIR = os.path.dirname(CURRENT_DIR)
 
-# On Vercel / serverless environments, only /tmp is writable
-if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
-    HISTORY_FILE = "/tmp/analysis_logs_v2.csv"
-else:
-    HISTORY_FILE = os.path.join(BASE_DIR, "analysis_logs_v2.csv")
+# Flexible model file resolution for local & Vercel serverless
+candidate_model_paths = [
+    os.path.join(CURRENT_DIR, "fish_model_v3.tflite"),
+    os.path.join(PARENT_DIR, "fish_model_v3.tflite"),
+    os.path.join(CURRENT_DIR, "api", "fish_model_v3.tflite"),
+    "fish_model_v3.tflite"
+]
 
-MODEL_PATH = os.path.join(BASE_DIR, "fish_model_v3.tflite")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
+MODEL_PATH = None
+for p in candidate_model_paths:
+    if os.path.exists(p):
+        MODEL_PATH = p
+        break
+
+# Flexible samples directory resolution
+candidate_sample_dirs = [
+    os.path.join(CURRENT_DIR, "samples"),
+    os.path.join(PARENT_DIR, "public", "images"),
+    os.path.join(PARENT_DIR, "samples"),
+    CURRENT_DIR,
+    PARENT_DIR
+]
+
+SAMPLES_DIR = None
+for d in candidate_sample_dirs:
+    if os.path.isdir(d):
+        SAMPLES_DIR = d
+        break
+
+HISTORY_FILE = "/tmp/analysis_logs_v2.csv"
 
 CLASS_NAMES = ['Angelfish', 'Betta', 'Cichlidae', 'Goldfish', 'Koifish', 'Neontetra']
 
@@ -88,14 +104,13 @@ SPECIES_METADATA = [
     }
 ]
 
-# Initialize FastAPI
 app = FastAPI(
     title="AquaAI - Fish Species Classifier",
-    description="High-precision deep learning classifier for fish species identification (Vercel & Cloud Ready)",
-    version="2.1.0"
+    description="High-precision deep learning classifier for fish species identification (Vercel Serverless Ready)",
+    version="2.3.1",
+    redirect_slashes=False
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -104,7 +119,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# TFLite Runtime Interpreter Loader
 _interpreter = None
 
 def get_interpreter():
@@ -112,7 +126,6 @@ def get_interpreter():
     if _interpreter is not None:
         return _interpreter
 
-    # Dynamic fallback import for LiteRT / TFLite runtime
     try:
         from ai_edge_litert.interpreter import Interpreter
     except ImportError:
@@ -123,34 +136,22 @@ def get_interpreter():
             import tensorflow as tf
             Interpreter = tf.lite.Interpreter
 
-    if os.path.exists(MODEL_PATH):
+    if MODEL_PATH and os.path.exists(MODEL_PATH):
         print(f"[INFO] Loading TFLite model from {MODEL_PATH}...")
         _interpreter = Interpreter(model_path=MODEL_PATH)
         _interpreter.allocate_tensors()
-        print("[INFO] TFLite model loaded successfully!")
+        print("[INFO] Model loaded successfully!")
         return _interpreter
-
-    # Fallback to .h5 if .tflite is missing locally
-    h5_path = os.path.join(BASE_DIR, "fish_model_v3.h5")
-    if os.path.exists(h5_path):
+    else:
+        print(f"[ERROR] Model path not found. Checked: {candidate_model_paths}")
         try:
-            import tensorflow as tf
-            print(f"[INFO] Converting {h5_path} to TFLite...")
-            m = tf.keras.models.load_model(h5_path, compile=False)
-            converter = tf.lite.TFLiteConverter.from_keras_model(m)
-            tflite_bytes = converter.convert()
-            with open(MODEL_PATH, "wb") as f:
-                f.write(tflite_bytes)
-            _interpreter = Interpreter(model_path=MODEL_PATH)
-            _interpreter.allocate_tensors()
-            return _interpreter
-        except Exception as e:
-            print(f"[ERROR] Could not convert h5: {e}")
+            print(f"[INFO] CURRENT_DIR files: {os.listdir(CURRENT_DIR)}")
+        except Exception:
+            pass
 
     return None
 
 def save_log(result_records: list):
-    """Appends prediction records to CSV log file."""
     if not result_records:
         return
     new_df = pd.DataFrame(result_records)
@@ -166,7 +167,10 @@ def save_log(result_records: list):
 def predict_single_image(image: Image.Image, filename: str) -> dict:
     interpreter = get_interpreter()
     if interpreter is None:
-        raise HTTPException(status_code=503, detail="AI Model is not ready.")
+        raise HTTPException(
+            status_code=503, 
+            detail=f"AI Model is not ready. Model file not found in paths: {candidate_model_paths}"
+        )
 
     img_rgb = image.convert('RGB').resize((180, 180))
     input_data = np.expand_dims(np.array(img_rgb, dtype=np.float32), axis=0)
@@ -201,24 +205,39 @@ def predict_single_image(image: Image.Image, filename: str) -> dict:
         "scores": all_scores
     }
 
-# API Endpoints
+# Dual-routed endpoints to guarantee matching whether Vercel strips /api or not
+@app.get("/")
+@app.get("/api")
+@app.get("/api/")
+def root_check():
+    interp = get_interpreter()
+    return {
+        "status": "AquaAI API Online",
+        "version": "2.3.1",
+        "model_loaded": interp is not None,
+        "model_path": MODEL_PATH
+    }
+
+@app.get("/species")
 @app.get("/api/species")
 def get_species_list():
     return {"species": SPECIES_METADATA}
 
+@app.get("/model-status")
 @app.get("/api/model-status")
 def get_model_status():
     interp = get_interpreter()
     has_model = interp is not None
-    model_size = os.path.getsize(MODEL_PATH) if os.path.exists(MODEL_PATH) else 0
+    model_size = os.path.getsize(MODEL_PATH) if MODEL_PATH and os.path.exists(MODEL_PATH) else 0
     return {
         "ready": has_model,
-        "model_file": os.path.basename(MODEL_PATH),
+        "model_file": os.path.basename(MODEL_PATH) if MODEL_PATH else None,
         "model_size_mb": round(model_size / (1024 * 1024), 2),
         "format": "TensorFlow Lite",
         "classes": CLASS_NAMES
     }
 
+@app.post("/predict")
 @app.post("/api/predict")
 async def predict_uploaded_files(files: List[UploadFile] = File(...)):
     results = []
@@ -236,6 +255,8 @@ async def predict_uploaded_files(files: List[UploadFile] = File(...)):
                 'Species': res['species'],
                 'Confidence': res['confidence']
             })
+        except HTTPException as he:
+            raise he
         except Exception as e:
             results.append({
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -251,14 +272,23 @@ async def predict_uploaded_files(files: List[UploadFile] = File(...)):
 class SamplePredictRequest(BaseModel):
     sample_file: str
 
+@app.post("/predict-sample")
 @app.post("/api/predict-sample")
 def predict_sample_image(req: SamplePredictRequest):
-    sample_path = os.path.join(BASE_DIR, os.path.basename(req.sample_file))
-    if not os.path.exists(sample_path):
-        raise HTTPException(status_code=404, detail="Sample image file not found.")
+    fname = os.path.basename(req.sample_file)
+    sample_path = None
+    
+    for d in candidate_sample_dirs:
+        test_p = os.path.join(d, fname)
+        if os.path.exists(test_p):
+            sample_path = test_p
+            break
+
+    if not sample_path or not os.path.exists(sample_path):
+        raise HTTPException(status_code=404, detail=f"Sample image {fname} not found.")
 
     pil_img = Image.open(sample_path)
-    res = predict_single_image(pil_img, req.sample_file)
+    res = predict_single_image(pil_img, fname)
     save_log([{
         'Timestamp': res['timestamp'],
         'Filename': res['filename'],
@@ -267,6 +297,7 @@ def predict_sample_image(req: SamplePredictRequest):
     }])
     return res
 
+@app.get("/history")
 @app.get("/api/history")
 def get_history_logs():
     if not os.path.exists(HISTORY_FILE):
@@ -280,6 +311,7 @@ def get_history_logs():
     except Exception as e:
         return {"logs": [], "error": str(e)}
 
+@app.delete("/history")
 @app.delete("/api/history")
 def clear_history_logs():
     if os.path.exists(HISTORY_FILE):
@@ -289,6 +321,7 @@ def clear_history_logs():
             pass
     return {"message": "History cleared successfully."}
 
+@app.get("/stats")
 @app.get("/api/stats")
 def get_statistics():
     if not os.path.exists(HISTORY_FILE):
@@ -322,27 +355,3 @@ def get_statistics():
         }
     except Exception as e:
         return {"error": str(e)}
-
-# Serve sample images
-@app.get("/images/{image_name}")
-def serve_image(image_name: str):
-    safe_name = os.path.basename(image_name)
-    file_path = os.path.join(BASE_DIR, safe_name)
-    if os.path.exists(file_path):
-        return FileResponse(file_path)
-    raise HTTPException(status_code=404, detail="Image not found")
-
-# Serve frontend static assets
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-@app.get("/")
-def read_root():
-    index_file = os.path.join(STATIC_DIR, "index.html")
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
-    return {"status": "AquaAI API Online"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=True)

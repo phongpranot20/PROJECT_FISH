@@ -7,7 +7,7 @@ from typing import List
 import numpy as np
 from PIL import Image
 import pandas as pd
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -107,7 +107,8 @@ SPECIES_METADATA = [
 app = FastAPI(
     title="AquaAI - Fish Species Classifier",
     description="High-precision deep learning classifier for fish species identification (Vercel Serverless Ready)",
-    version="2.3.0"
+    version="2.3.1",
+    redirect_slashes=False
 )
 
 app.add_middleware(
@@ -204,21 +205,25 @@ def predict_single_image(image: Image.Image, filename: str) -> dict:
         "scores": all_scores
     }
 
+# Dual-routed endpoints to guarantee matching whether Vercel strips /api or not
 @app.get("/")
 @app.get("/api")
+@app.get("/api/")
 def root_check():
     interp = get_interpreter()
     return {
         "status": "AquaAI API Online",
-        "version": "2.3.0",
+        "version": "2.3.1",
         "model_loaded": interp is not None,
         "model_path": MODEL_PATH
     }
 
+@app.get("/species")
 @app.get("/api/species")
 def get_species_list():
     return {"species": SPECIES_METADATA}
 
+@app.get("/model-status")
 @app.get("/api/model-status")
 def get_model_status():
     interp = get_interpreter()
@@ -232,6 +237,7 @@ def get_model_status():
         "classes": CLASS_NAMES
     }
 
+@app.post("/predict")
 @app.post("/api/predict")
 async def predict_uploaded_files(files: List[UploadFile] = File(...)):
     results = []
@@ -266,6 +272,7 @@ async def predict_uploaded_files(files: List[UploadFile] = File(...)):
 class SamplePredictRequest(BaseModel):
     sample_file: str
 
+@app.post("/predict-sample")
 @app.post("/api/predict-sample")
 def predict_sample_image(req: SamplePredictRequest):
     fname = os.path.basename(req.sample_file)
@@ -290,6 +297,7 @@ def predict_sample_image(req: SamplePredictRequest):
     }])
     return res
 
+@app.get("/history")
 @app.get("/api/history")
 def get_history_logs():
     if not os.path.exists(HISTORY_FILE):
@@ -303,6 +311,7 @@ def get_history_logs():
     except Exception as e:
         return {"logs": [], "error": str(e)}
 
+@app.delete("/history")
 @app.delete("/api/history")
 def clear_history_logs():
     if os.path.exists(HISTORY_FILE):
@@ -312,6 +321,7 @@ def clear_history_logs():
             pass
     return {"message": "History cleared successfully."}
 
+@app.get("/stats")
 @app.get("/api/stats")
 def get_statistics():
     if not os.path.exists(HISTORY_FILE):
