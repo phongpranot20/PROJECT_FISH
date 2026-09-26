@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AquaAI — Fish Species Deep Learning Classifier</title>
+  <meta name="description" content="State-of-the-art Deep Learning Fish Species Classification and Intelligence Dashboard powered by TensorFlow and FastAPI.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js for High-Performance Visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <div style="font-family: 'Outfit', sans-serif; font-size: 1.15rem; font-weight: 600; color: var(--accent-cyan);">
+      Neural Network Analyzing Image...
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-secondary);">
+      Extracting features & calculating softmax probabilities
+    </div>
+  </div>
+
+  <!-- Webcam Modal -->
+  <div id="webcamModal" class="modal">
+    <div class="modal-content">
+      <h3 style="font-family: 'Outfit'; font-size: 1.3rem; margin-bottom: 12px; color: var(--text-primary);">
+        📸 Live Camera Capture
+      </h3>
+      <video id="webcamVideo" class="webcam-video" autoplay playsinline></video>
+      <canvas id="webcamCanvas" style="display: none;"></canvas>
+      <div style="display: flex; justify-content: center; gap: 12px;">
+        <button id="btnCapturePhoto" class="btn btn-primary">
+          <span>⚡ Capture & Classify</span>
+        </button>
+        <button id="btnCloseWebcam" class="btn btn-secondary">
+          <span>Cancel</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Navbar -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="brand-icon">🐠</div>
+        <div>
+          <h1 class="brand-title">AquaAI Vision</h1>
+          <div class="brand-subtitle">Deep Learning Species Classifier</div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <div id="modelStatusBadge" class="model-badge">
+          <span class="status-dot"></span>
+          <span id="modelStatusText">Model Ready (v3.0)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-pill">
+        ✨ Powered by Convolutional Neural Network
+      </div>
+      <h2 class="hero-title">
+        Instant & Precise <span class="gradient-text">Fish Species</span> Recognition
+      </h2>
+      <p class="hero-desc">
+        Upload or photograph any freshwater or marine fish. Our trained deep learning model inspects anatomical shapes, fin structures, and color pigmentation with over 97.6% validation accuracy.
+      </p>
+    </section>
+
+    <!-- Supported Species Gallery -->
+    <section>
+      <div class="section-header">
+        <div>
+          <h3 class="section-title">🧬 Recognizable Species Reference</h3>
+          <p class="section-subtitle">Click "Test Sample" on any species card to test the AI model instantly</p>
+        </div>
+      </div>
+
+      <div id="speciesGrid" class="species-grid">
+        <!-- Rendered dynamically by JavaScript -->
+      </div>
+    </section>
+
+    <!-- Upload Zone -->
+    <section class="upload-card">
+      <div id="dropZone" class="drop-zone">
+        <input type="file" id="fileInput" multiple accept="image/jpeg,image/png,image/jpg" style="display: none;">
+        <div class="drop-icon">🌊</div>
+        <div class="drop-title">Drag & Drop fish images here, or browse</div>
+        <div class="drop-subtitle">Supports JPG, PNG, JPEG (Single or Batch Upload)</div>
+        <div class="upload-actions">
+          <button id="btnBrowse" type="button" class="btn btn-primary">
+            📁 Browse Files
+          </button>
+          <button id="btnOpenWebcam" type="button" class="btn btn-secondary">
+            📷 Use Camera
+          </button>
+        </div>
+      </div>
+
+      <!-- Selected Files Preview Grid -->
+      <div id="previewSection" class="preview-section" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h4 style="font-weight: 600; font-size: 0.95rem;">
+            Selected Images (<span id="selectedCount">0</span>)
+          </h4>
+          <button id="btnClearSelection" class="btn btn-danger" style="padding: 4px 12px; font-size: 0.78rem;">
+            Clear All
+          </button>
+        </div>
+        <div id="previewGrid" class="preview-grid">
+          <!-- Thumbnails injected here -->
+        </div>
+        <div class="action-bar">
+          <span style="font-size: 0.85rem; color: var(--text-secondary);">Ready to process through Neural Network</span>
+          <button id="btnRunInference" class="btn btn-primary" style="padding: 12px 32px; font-size: 1rem;">
+            🚀 START ANALYSIS NOW
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Real-time Analysis Results -->
+    <section id="resultsSection" class="results-section" style="display: none;">
+      <div class="section-header">
+        <div>
+          <h3 class="section-title">🎯 Analysis Results</h3>
+          <p class="section-subtitle">Model prediction confidence and probability distribution across all 6 classes</p>
+        </div>
+      </div>
+      <div id="resultCards" class="result-cards">
+        <!-- Results injected here -->
+      </div>
+    </section>
+
+    <!-- Metrics & Analytics -->
+    <section>
+      <div class="section-header">
+        <div>
+          <h3 class="section-title">📊 Intelligence Dashboard</h3>
+          <p class="section-subtitle">Real-time telemetry and species classification history</p>
+        </div>
+      </div>
+
+      <div class="analytics-grid">
+        <div class="stat-card">
+          <div class="stat-icon-wrapper" style="background: rgba(0, 242, 254, 0.12); color: var(--accent-cyan);">
+            📈
+          </div>
+          <div>
+            <div id="statTotalAnalyzed" class="stat-val">0</div>
+            <div class="stat-label">Total Images Analyzed</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-green);">
+            🎯
+          </div>
+          <div>
+            <div id="statAvgConfidence" class="stat-val">0.0%</div>
+            <div class="stat-label">Average Confidence</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon-wrapper" style="background: rgba(121, 40, 202, 0.12); color: #a855f7);">
+            🏆
+          </div>
+          <div>
+            <div id="statTopSpecies" class="stat-val" style="font-size: 1.25rem;">N/A</div>
+            <div class="stat-label">Most Detected Species</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon-wrapper" style="background: rgba(245, 158, 11, 0.12); color: var(--accent-amber);">
+            🧠
+          </div>
+          <div>
+            <div class="stat-val">97.6%</div>
+            <div class="stat-label">Model Validation Accuracy</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h4 class="chart-title">Species Distribution</h4>
+          <div class="chart-wrapper">
+            <canvas id="speciesDoughnutChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h4 class="chart-title">Confidence History Over Time</h4>
+          <div class="chart-wrapper">
+            <canvas id="confidenceTimelineChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- History Logs Table -->
+    <section class="history-card">
+      <div class="table-controls">
+        <h4 style="font-family: 'Outfit'; font-size: 1.15rem; font-weight: 600;">
+          📝 Classification Logs
+        </h4>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <input type="text" id="logSearchInput" class="search-input" placeholder="Search by species or file...">
+          <button id="btnClearHistory" class="btn btn-secondary" style="font-size: 0.8rem; padding: 7px 14px;">
+            🗑️ Clear History
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Filename</th>
+              <th>Predicted Species</th>
+              <th>Confidence Level</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted);">
+                No classification records found. Upload an image above to start.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Custom JavaScript -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
