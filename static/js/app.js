@@ -14,17 +14,23 @@ document.addEventListener('DOMContentLoaded', () => {
   initWebcam();
 
   // Search input filter
-  document.getElementById('logSearchInput').addEventListener('input', (e) => {
-    filterHistoryLogs(e.target.value);
-  });
+  const searchInput = document.getElementById('logSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      filterHistoryLogs(e.target.value);
+    });
+  }
 
   // Clear History
-  document.getElementById('btnClearHistory').addEventListener('click', async () => {
-    if (confirm("Are you sure you want to clear all analysis history?")) {
-      await fetch('/api/history', { method: 'DELETE' });
-      loadStatsAndHistory();
-    }
-  });
+  const clearBtn = document.getElementById('btnClearHistory');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', async () => {
+      if (confirm("Are you sure you want to clear all analysis history?")) {
+        await fetch('/api/history', { method: 'DELETE' });
+        loadStatsAndHistory();
+      }
+    });
+  }
 });
 
 // Load Species Cards
@@ -33,6 +39,7 @@ async function initSpecies() {
     const res = await fetch('/api/species');
     const data = await res.json();
     const grid = document.getElementById('speciesGrid');
+    if (!grid) return;
     grid.innerHTML = '';
 
     data.species.forEach(sp => {
@@ -64,6 +71,7 @@ async function initModelStatus() {
     const res = await fetch('/api/model-status');
     const data = await res.json();
     const badgeText = document.getElementById('modelStatusText');
+    if (!badgeText) return;
     if (data.ready) {
       badgeText.textContent = `Model Ready (${data.model_size_mb} MB)`;
     } else {
@@ -84,10 +92,14 @@ function initUploadHandlers() {
   const btnClearSelection = document.getElementById('btnClearSelection');
   const btnRunInference = document.getElementById('btnRunInference');
 
-  btnBrowse.addEventListener('click', (e) => {
-    e.stopPropagation();
-    fileInput.click();
-  });
+  if (!dropZone || !fileInput) return;
+
+  if (btnBrowse) {
+    btnBrowse.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+  }
 
   dropZone.addEventListener('click', () => {
     fileInput.click();
@@ -121,16 +133,23 @@ function initUploadHandlers() {
     }
   });
 
-  btnClearSelection.addEventListener('click', () => {
-    selectedFiles = [];
-    fileInput.value = '';
-    renderPreviews();
-  });
+  if (btnClearSelection) {
+    btnClearSelection.addEventListener('click', () => {
+      selectedFiles = [];
+      fileInput.value = '';
+      renderPreviews();
+    });
+  }
 
-  btnRunInference.addEventListener('click', () => {
-    if (selectedFiles.length === 0) return;
-    runInference(selectedFiles);
-  });
+  if (btnRunInference) {
+    btnRunInference.addEventListener('click', () => {
+      if (selectedFiles.length === 0) {
+        alert("Please select or drop at least one fish image first.");
+        return;
+      }
+      runInference(selectedFiles);
+    });
+  }
 }
 
 function addFiles(files) {
@@ -153,13 +172,15 @@ function renderPreviews() {
   const grid = document.getElementById('previewGrid');
   const countSpan = document.getElementById('selectedCount');
 
+  if (!section || !grid) return;
+
   if (selectedFiles.length === 0) {
     section.style.display = 'none';
     return;
   }
 
   section.style.display = 'block';
-  countSpan.textContent = selectedFiles.length;
+  if (countSpan) countSpan.textContent = selectedFiles.length;
   grid.innerHTML = '';
 
   selectedFiles.forEach((file, idx) => {
@@ -182,7 +203,13 @@ function renderPreviews() {
 // Run Inference for Multiple Uploaded Files
 async function runInference(files) {
   const overlay = document.getElementById('loadingOverlay');
-  overlay.classList.add('active');
+  if (overlay) overlay.classList.add('active');
+
+  // Store object URLs so result cards show the user's actual image preview
+  const fileImgMap = {};
+  files.forEach(f => {
+    fileImgMap[f.name] = URL.createObjectURL(f);
+  });
 
   const formData = new FormData();
   files.forEach(f => formData.append('files', f));
@@ -192,31 +219,51 @@ async function runInference(files) {
       method: 'POST',
       body: formData
     });
+
+    if (!res.ok) {
+      let errDetail = `Server error HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson.detail) {
+          errDetail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail);
+        }
+      } catch (e) {}
+      throw new Error(errDetail);
+    }
+
     const data = await res.json();
     
+    if (!data.results || data.results.length === 0) {
+      throw new Error("No analysis results returned from server.");
+    }
+
     // Clear selection
     selectedFiles = [];
     renderPreviews();
 
     // Render results
-    renderResults(data.results);
+    renderResults(data.results, null, fileImgMap);
 
     // Refresh charts and history
     await loadStatsAndHistory();
 
     // Scroll to results
-    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+    const resSection = document.getElementById('resultsSection');
+    if (resSection) {
+      resSection.scrollIntoView({ behavior: 'smooth' });
+    }
   } catch (err) {
-    alert("Inference failed: " + err.message);
+    console.error("Analysis error:", err);
+    alert("Analysis Failed: " + err.message);
   } finally {
-    overlay.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
   }
 }
 
 // Run Quick Sample Inference
 async function runSampleInference(sampleFile) {
   const overlay = document.getElementById('loadingOverlay');
-  overlay.classList.add('active');
+  if (overlay) overlay.classList.add('active');
 
   try {
     const res = await fetch('/api/predict-sample', {
@@ -224,22 +271,35 @@ async function runSampleInference(sampleFile) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sample_file: sampleFile })
     });
+
+    if (!res.ok) {
+      let errDetail = `Server error HTTP ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson.detail) errDetail = errJson.detail;
+      } catch (e) {}
+      throw new Error(errDetail);
+    }
+
     const data = await res.json();
 
     renderResults([data], `/images/${sampleFile}`);
     await loadStatsAndHistory();
-    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+    const resSection = document.getElementById('resultsSection');
+    if (resSection) resSection.scrollIntoView({ behavior: 'smooth' });
   } catch (err) {
     alert("Sample inference failed: " + err.message);
   } finally {
-    overlay.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
   }
 }
 
 // Render Results Grid
-function renderResults(results, fallbackImg = null) {
+function renderResults(results, fallbackImg = null, fileImgMap = {}) {
   const section = document.getElementById('resultsSection');
   const container = document.getElementById('resultCards');
+  if (!section || !container) return;
+
   container.innerHTML = '';
 
   if (!results || results.length === 0) {
@@ -253,13 +313,26 @@ function renderResults(results, fallbackImg = null) {
     if (item.error) {
       const errCard = document.createElement('div');
       errCard.className = 'result-card';
-      errCard.innerHTML = `<div style="color: #ef4444;">Error processing ${item.filename}: ${item.error}</div>`;
+      errCard.innerHTML = `
+        <div style="padding: 16px; color: #ef4444; width: 100%;">
+          <strong>⚠️ Analysis Error (${item.filename}):</strong>
+          <p style="margin-top: 6px; font-size: 0.88rem; color: #fca5a5;">${item.error}</p>
+        </div>
+      `;
       container.appendChild(errCard);
       return;
     }
 
     const confClass = item.confidence >= 80 ? 'conf-high' : item.confidence >= 50 ? 'conf-med' : 'conf-low';
-    const imgSrc = fallbackImg || `/images/${item.filename}`;
+    
+    // Choose image: fallbackImg > objectURL > /images/filename
+    let imgSrc = fallbackImg;
+    if (!imgSrc && fileImgMap && fileImgMap[item.filename]) {
+      imgSrc = fileImgMap[item.filename];
+    }
+    if (!imgSrc) {
+      imgSrc = `/images/${item.filename}`;
+    }
 
     const card = document.createElement('div');
     card.className = 'result-card';
@@ -289,7 +362,7 @@ function renderResults(results, fallbackImg = null) {
         <div class="result-meta">
           <span>📁 ${item.filename}</span>
           <span>⚡ ${item.latency_ms} ms</span>
-          <span>🕒 ${item.timestamp.split(' ')[1]}</span>
+          <span>🕒 ${(item.timestamp || '').split(' ')[1] || item.timestamp}</span>
         </div>
         <div class="scores-container">
           ${scoresHtml}
@@ -303,125 +376,139 @@ function renderResults(results, fallbackImg = null) {
 
 // Initialize Charts
 function initCharts() {
-  const doughnutCtx = document.getElementById('speciesDoughnutChart').getContext('2d');
-  speciesChart = new Chart(doughnutCtx, {
-    type: 'doughnut',
-    data: {
-      labels: [],
-      datasets: [{
-        data: [],
-        backgroundColor: [
-          '#00f2fe', '#4facfe', '#7928ca', '#10b981', '#f59e0b', '#ec4899'
-        ],
-        borderWidth: 0,
-        hoverOffset: 8
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'right',
-          labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 } }
-        }
+  const doughnutEl = document.getElementById('speciesDoughnutChart');
+  if (doughnutEl) {
+    const doughnutCtx = doughnutEl.getContext('2d');
+    speciesChart = new Chart(doughnutCtx, {
+      type: 'doughnut',
+      data: {
+        labels: [],
+        datasets: [{
+          data: [],
+          backgroundColor: [
+            '#00f2fe', '#4facfe', '#7928ca', '#10b981', '#f59e0b', '#ec4899'
+          ],
+          borderWidth: 0,
+          hoverOffset: 8
+        }]
       },
-      cutout: '70%'
-    }
-  });
-
-  const timelineCtx = document.getElementById('confidenceTimelineChart').getContext('2d');
-  timelineChart = new Chart(timelineCtx, {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'Confidence (%)',
-        data: [],
-        borderColor: '#00f2fe',
-        backgroundColor: 'rgba(0, 242, 254, 0.12)',
-        fill: true,
-        tension: 0.35,
-        pointBackgroundColor: '#4facfe',
-        pointBorderColor: '#070c18',
-        pointHoverRadius: 6,
-        borderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: {
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#64748b', maxRotation: 45, maxTicksLimit: 8 }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 } }
+          }
         },
-        y: {
-          min: 0,
-          max: 100,
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#64748b' }
-        }
-      },
-      plugins: {
-        legend: { display: false }
+        cutout: '70%'
       }
-    }
-  });
+    });
+  }
+
+  const timelineEl = document.getElementById('confidenceTimelineChart');
+  if (timelineEl) {
+    const timelineCtx = timelineEl.getContext('2d');
+    timelineChart = new Chart(timelineCtx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Confidence (%)',
+          data: [],
+          borderColor: '#00f2fe',
+          backgroundColor: 'rgba(0, 242, 254, 0.12)',
+          fill: true,
+          tension: 0.35,
+          pointBackgroundColor: '#4facfe',
+          pointBorderColor: '#070c18',
+          pointHoverRadius: 6,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: { color: '#64748b', maxRotation: 45, maxTicksLimit: 8 }
+          },
+          y: {
+            min: 0,
+            max: 100,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: { color: '#64748b' }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+  }
 }
 
 // Load Telemetry & History
 async function loadStatsAndHistory() {
   try {
     const statsRes = await fetch('/api/stats');
-    const stats = await statsRes.json();
+    if (statsRes.ok) {
+      const stats = await statsRes.json();
+      const totalEl = document.getElementById('statTotalAnalyzed');
+      const confEl = document.getElementById('statAvgConfidence');
+      const topEl = document.getElementById('statTopSpecies');
 
-    document.getElementById('statTotalAnalyzed').textContent = stats.total_analyzed || 0;
-    document.getElementById('statAvgConfidence').textContent = (stats.avg_confidence || 0).toFixed(1) + '%';
+      if (totalEl) totalEl.textContent = stats.total_analyzed || 0;
+      if (confEl) confEl.textContent = (stats.avg_confidence || 0).toFixed(1) + '%';
 
-    // Top detected species
-    const counts = stats.species_counts || {};
-    let topName = 'N/A';
-    let topCount = 0;
-    for (const [sp, c] of Object.entries(counts)) {
-      if (c > topCount) {
-        topCount = c;
-        topName = sp;
+      // Top detected species
+      const counts = stats.species_counts || {};
+      let topName = 'N/A';
+      let topCount = 0;
+      for (const [sp, c] of Object.entries(counts)) {
+        if (c > topCount) {
+          topCount = c;
+          topName = sp;
+        }
       }
-    }
-    document.getElementById('statTopSpecies').textContent = topName;
+      if (topEl) topEl.textContent = topName;
 
-    // Update Species Doughnut Chart
-    const speciesLabels = Object.keys(counts);
-    const speciesData = Object.values(counts);
-    if (speciesChart) {
-      speciesChart.data.labels = speciesLabels.length > 0 ? speciesLabels : ['No Data'];
-      speciesChart.data.datasets[0].data = speciesData.length > 0 ? speciesData : [1];
-      speciesChart.data.datasets[0].backgroundColor = speciesData.length > 0 ? [
-        '#00f2fe', '#4facfe', '#7928ca', '#10b981', '#f59e0b', '#ec4899'
-      ] : ['rgba(255,255,255,0.1)'];
-      speciesChart.update();
-    }
+      // Update Species Doughnut Chart
+      const speciesLabels = Object.keys(counts);
+      const speciesData = Object.values(counts);
+      if (speciesChart) {
+        speciesChart.data.labels = speciesLabels.length > 0 ? speciesLabels : ['No Data'];
+        speciesChart.data.datasets[0].data = speciesData.length > 0 ? speciesData : [1];
+        speciesChart.data.datasets[0].backgroundColor = speciesData.length > 0 ? [
+          '#00f2fe', '#4facfe', '#7928ca', '#10b981', '#f59e0b', '#ec4899'
+        ] : ['rgba(255,255,255,0.1)'];
+        speciesChart.update();
+      }
 
-    // Update Timeline Line Chart
-    if (timelineChart && stats.timeline) {
-      timelineChart.data.labels = stats.timeline.map(t => t.Timestamp.split(' ')[1] || t.Timestamp);
-      timelineChart.data.datasets[0].data = stats.timeline.map(t => t.Confidence);
-      timelineChart.update();
+      // Update Timeline Line Chart
+      if (timelineChart && stats.timeline) {
+        timelineChart.data.labels = stats.timeline.map(t => (t.Timestamp || '').split(' ')[1] || t.Timestamp);
+        timelineChart.data.datasets[0].data = stats.timeline.map(t => t.Confidence);
+        timelineChart.update();
+      }
     }
 
     // History Table
     const histRes = await fetch('/api/history');
-    const hist = await histRes.json();
-    allHistoryLogs = hist.logs || [];
-    renderHistoryTable(allHistoryLogs);
+    if (histRes.ok) {
+      const hist = await histRes.json();
+      allHistoryLogs = hist.logs || [];
+      renderHistoryTable(allHistoryLogs);
+    }
   } catch (err) {
-    console.error("Failed to load stats/history:", err);
+    console.warn("Stats load warning:", err);
   }
 }
 
 function renderHistoryTable(logs) {
   const tbody = document.getElementById('historyTableBody');
+  if (!tbody) return;
   tbody.innerHTML = '';
 
   if (!logs || logs.length === 0) {
@@ -476,6 +563,8 @@ function initWebcam() {
   const video = document.getElementById('webcamVideo');
   const canvas = document.getElementById('webcamCanvas');
 
+  if (!btnOpen || !modal || !video) return;
+
   btnOpen.addEventListener('click', async () => {
     try {
       webcamStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -494,20 +583,22 @@ function initWebcam() {
     modal.classList.remove('active');
   };
 
-  btnClose.addEventListener('click', stopWebcam);
+  if (btnClose) btnClose.addEventListener('click', stopWebcam);
 
-  btnCapture.addEventListener('click', () => {
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  if (btnCapture) {
+    btnCapture.addEventListener('click', () => {
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    canvas.toBlob((blob) => {
-      const file = new File([blob], `camera_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      stopWebcam();
-      selectedFiles.push(file);
-      renderPreviews();
-      runInference([file]);
-    }, 'image/jpeg', 0.95);
-  });
+      canvas.toBlob((blob) => {
+        const file = new File([blob], `camera_capture_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        stopWebcam();
+        selectedFiles.push(file);
+        renderPreviews();
+        runInference([file]);
+      }, 'image/jpeg', 0.95);
+    });
+  }
 }
