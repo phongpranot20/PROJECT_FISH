@@ -119,6 +119,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class VercelPathMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        matched = (
+            request.headers.get("x-matched-path") or
+            request.headers.get("x-vercel-matched-path") or
+            request.headers.get("x-invoke-path")
+        )
+        if matched:
+            request.scope["path"] = matched.split("?")[0]
+        return await call_next(request)
+
+app.add_middleware(VercelPathMiddleware)
+
 _interpreter = None
 
 def get_interpreter():
