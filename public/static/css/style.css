@@ -113,6 +113,7 @@ body {
   letter-spacing: -0.5px;
   background: linear-gradient(to right, #ffffff, #93c5fd);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -191,6 +192,7 @@ body {
 .hero-title .gradient-text {
   background: linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #9066ff 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

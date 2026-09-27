@@ -145,10 +145,10 @@ def get_interpreter():
         from ai_edge_litert.interpreter import Interpreter
     except ImportError:
         try:
-            import tflite_runtime.interpreter as tflite
+            import tflite_runtime.interpreter as tflite  # type: ignore
             Interpreter = tflite.Interpreter
         except ImportError:
-            import tensorflow as tf
+            import tensorflow as tf  # type: ignore
             Interpreter = tf.lite.Interpreter
 
     if MODEL_PATH and os.path.exists(MODEL_PATH):
@@ -370,3 +370,37 @@ def get_statistics():
         }
     except Exception as e:
         return {"error": str(e)}
+
+@app.api_route("/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def catch_all_router(request: Request, full_path: str):
+    path_str = f"{request.url.path}/{full_path}".lower()
+
+    if "predict-sample" in path_str and request.method == "POST":
+        body = await request.json()
+        return predict_sample_image(SamplePredictRequest(**body))
+
+    if "predict" in path_str and request.method == "POST":
+        form = await request.form()
+        files = form.getlist("files")
+        return await predict_uploaded_files(files)
+
+    if "species" in path_str:
+        return get_species_list()
+
+    if "model-status" in path_str:
+        return get_model_status()
+
+    if "history" in path_str:
+        if request.method == "DELETE":
+            return clear_history_logs()
+        return get_history_logs()
+
+    if "stats" in path_str:
+        return get_statistics()
+
+    return {
+        "status": "AquaAI API Online",
+        "version": "2.3.2",
+        "requested_url": str(request.url),
+        "full_path": full_path
+    }
